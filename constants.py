@@ -44,7 +44,7 @@ butter_filt = [0.1, 35]
 butter_order = 4
 notch = 50
 
-n_ica_components = 30
+n_ica_components = None
 mne_verbose_level = 1
 
 uV_scaler = 1e6
