@@ -3,6 +3,7 @@ import pickle
 import os
 
 import numpy as np
+import pandas as pd
 from scipy import signal
 
 import mne
@@ -20,7 +21,8 @@ def select_color(key):
 def plot_evoked_response(data: dict, 
                             p3peaks: dict={}, n1peaks: dict={},
                             p300_n1_aim_fill: bool=True, peakdot: bool=True,
-                            fname: pathlib.Path=None
+                            fname: pathlib.Path=None,
+                            title=None
                             ):
     """
         plot topographic EP maps
@@ -41,7 +43,7 @@ def plot_evoked_response(data: dict,
 
 
     fig = plt.figure()
-
+    fig.suptitle(title, x=0.1, y=0.9, fontsize=20)
     tpplt = [a for a in iter_topography_fork._iter_topography(info, layout=None, on_pick=None, fig=fig, layout_scale=0.945,
                                                     fig_facecolor='white', axis_facecolor='white', axis_spinecolor='white',
                                                     hide_xticklabels=True, hide_yticklabels=False, y_scale=3)]
@@ -90,10 +92,20 @@ def plot_evoked_response(data: dict,
     else:
         plt.show()
     plt.close()
-    return
+    return fig
 
 def plot_vectors_with_peaks(vector: np.ndarray,
                             p3_data: int=None, n1_data: int=None, n4_data: int=None):
+    """UNTESTED
+    
+    Arguments:
+        vector {np.ndarray} -- [description]
+    
+    Keyword Arguments:
+        p3_data {int} -- [description] (default: {None})
+        n1_data {int} -- [description] (default: {None})
+        n4_data {int} -- [description] (default: {None})
+    """                            
     zero = int(np.abs(constants.epochs_tmin)*constants.fs)
     xaxis = list(range(-1*zero, vector.shape[0]*constants.ms_factor - zero, constants.ms_factor))
     plt.plot(xaxis, vector)
@@ -137,6 +149,7 @@ def plot_vectors_with_peaks(vector: np.ndarray,
     
 def get_peaks_from_evoked(evoked: mne.EvokedArray):
     """
+        UNTESTED
         Detect P300 and N1 peak ampltudes ans latencies
 
         Args:
@@ -173,3 +186,30 @@ def get_peaks_from_evoked(evoked: mne.EvokedArray):
 #                 peaks_dict['n1i_{}'.format(p) ] = n1peaks[p][0]
     
 #         return p3peaks, n1peaks, peaks_dict
+
+def subset(ds, submarkup:pd.DataFrame):
+    """Create Mne Evoked arrays for target, nontarget and delta EP
+    
+    Arguments:
+        ds {dataset.DatasetReader} -- dataset
+        submarkup {pd.DataFrame} -- subset of ds.markup, meeting any arbitrary condition
+    
+    Returns:
+        dict -- Payload-style dict with target, nontarget and difference EPs for given subset
+    """    
+    
+    subset_t = submarkup.loc[submarkup['is_target'] == 1]
+    subset_nt = submarkup.loc[submarkup['is_target'] == 0]
+
+    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline((0,0))
+    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((0,0))
+    evoked_delta = mne.EvokedArray(info = ds.info,
+                                        data = evoked_t._data - evoked_nt._data,
+                                        tmin = constants.epochs_tmin
+                                        )
+    payload = {
+                'target': evoked_t,
+                'nontarget': evoked_nt,
+                'delta': evoked_delta
+                }
+    return payload

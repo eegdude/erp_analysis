@@ -9,6 +9,8 @@ import pickle
 import os
 
 import numpy as np
+import pandas as pd
+
 from scipy import signal
 
 import mne
@@ -19,11 +21,12 @@ import constants
 import dataset
 import folders
 import iter_topography_fork
-import analysis_and_plotting_functions
+import analysis_and_plotting_functions as aps
 
 # %%
-plt.rcParams['figure.figsize'] = [20,10]
+plt.rcParams['figure.figsize'] = [16,8]
 # %%
+# Create dataset from raw data
 dataset.EpDatasetCreator(markup_path=folders.markup_path,
                         database_path=folders.database_path_ica,
                         data_folder=folders.data_folder,
@@ -32,106 +35,57 @@ dataset.EpDatasetCreator(markup_path=folders.markup_path,
                         fit_with_additional_lowpass=True
                         )
 # %%
+# Load dataset into memory (if short on memory, use preload=False)
 ds = dataset.DatasetReader(data_path=folders.database_path_car_ica, preload=True)
-#
-# %%
-def subset(ds, submarkup, reg='brl_static6_all8'):
-    
-    subset_t = submarkup.loc[ (submarkup['reg'] == reg) &
-                            (submarkup['is_target'] == 1) 
-                        ]
-    subset_nt = submarkup.loc[ (submarkup['reg'] == reg) &
-                            (submarkup['is_target'] == 0) 
-                        ]
 
-    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline((0,0))
-    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((0,0))
-    evoked_delta = mne.EvokedArray(info = ds.info,
-                                        data = evoked_t._data - evoked_nt._data,
-                                        tmin = constants.epochs_tmin
-                                        )
-    payload = {
-                'target': evoked_t,
-                'nontarget': evoked_nt,
-                'delta': evoked_delta
-                }
-    return payload
 # %%
 # blind vs sighted
+reg = 'brl_static6_all1'
 
-subset_blind = ds.markup.loc[ ds.markup['blind'] == 1]
-payload_blind = subset(ds, subset_blind)
-payload_blind['delta'].plot_topomap(times='peaks', scalings={'eeg':1})
-analysis_and_plotting_functions.plot_evoked_response(data = payload_blind)
-
-subset_sighted = ds.markup.loc[ ds.markup['blind'] == 0]
-payload_sighted = subset(ds, subset_sighted)
-payload_sighted['delta'].plot_topomap(times='peaks', scalings={'eeg':1})
-analysis_and_plotting_functions.plot_evoked_response(data = payload_sighted)
-
-
-analysis_and_plotting_functions.plot_evoked_response(data = {'blind': payload_blind['delta'],
-                                                             'sighted': payload_sighted['delta']
-                                                            })
-
-
-
-analysis_and_plotting_functions.plot_evoked_response(data = {'blind': payload_blind['nontarget'].crop(tmax=0.3),
-                                                             'sighted': payload_sighted['nontarget'].crop(tmax=0.3)
-                                                            })
-
-payload_blind['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1})
-payload_sighted['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1})
-
-
-# %%
-# late blind vs early blind
-subset_blind = ds.markup.loc[ ds.markup['blindness_age'] == 0]
-payload_blind = subset(ds, subset_blind)
-
-subset_sighted = ds.markup.loc[ ds.markup['blindness_age'] >0]
-payload_sighted = subset(ds, subset_sighted)
-
-
-analysis_and_plotting_functions.plot_evoked_response(data = {'early_blind': payload_blind['delta'],
-                                                             'late_blind': payload_sighted['delta']
-                                                            })
-
-
-
-analysis_and_plotting_functions.plot_evoked_response(data = {'early_blind': payload_blind['nontarget'].crop(tmax=0.3),
-                                                             'late_blind': payload_sighted['nontarget'].crop(tmax=0.3)
-                                                            })
-
-payload_blind['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1})
-payload_sighted['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1})
-print ()
-
-
-
-
-# %%
-
-# late blind vs early blind
 subset_blind = ds.markup.loc[ (ds.markup['blind'] == 1) &
-                                (ds.markup['finger'] == 1]
+                              (ds.markup['reg'] == reg)
+                            ]
+payload_blind = aps.subset(ds, subset_blind)
 
-payload_sighted = subset(ds, subset_sighted)
+subset_sighted = ds.markup.loc[ (ds.markup['blind'] == 0) &
+                              (ds.markup['reg'] == reg)
+                            ]
+payload_sighted = aps.subset(ds, subset_sighted)
 
 
-analysis_and_plotting_functions.plot_evoked_response(data = {'early_blind': payload_blind['delta'],
-                                                             'late_blind': payload_sighted['delta']
-                                                            })
+aps.plot_evoked_response(data=payload_blind,
+                                                    title='blind subjects')
+
+aps.plot_evoked_response(data=payload_sighted,
+                                                    title='sighted subjects')
+
+aps.plot_evoked_response(data={'blind': payload_blind['delta'],
+                                                             'sighted': payload_sighted['delta']
+                                                            },
+                                                    title='Target EPs')
+
+aps.plot_evoked_response(data = {'blind': payload_blind['nontarget'].crop(tmax=0.3),
+                                                             'sighted': payload_sighted['nontarget'].crop(tmax=0.3)
+                                                            },
+                                                    title='Nontarget EPs')
 
 
+p = payload_sighted['delta'].plot_topomap(times='peaks', scalings={'eeg':1}, show=False)
+p.suptitle('sighted delta')
+p.show()
 
-analysis_and_plotting_functions.plot_evoked_response(data = {'early_blind': payload_blind['nontarget'].crop(tmax=0.3),
-                                                             'late_blind': payload_sighted['nontarget'].crop(tmax=0.3)
-                                                            })
+p = payload_blind['delta'].plot_topomap(times='peaks', scalings={'eeg':1}, show=False)
+p.suptitle('blind delta')
+p.show()
 
-payload_blind['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1})
-payload_sighted['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1})
-print ()
+
+p = payload_sighted['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1}, show=False)
+p.suptitle('sighted nontarget')
+p.show()
+
+p = payload_blind['nontarget'].crop(tmax=0.3).plot_topomap(times='peaks', scalings={'eeg':1}, show=False)
+p.suptitle('blind nontarget')
+p.show()
 
 #%%
 blind_markup = ds.markup.loc[ds.markup['blind'] == 1]

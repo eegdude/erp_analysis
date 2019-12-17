@@ -48,7 +48,7 @@ n_ica_components = None
 mne_verbose_level = 1
 
 uV_scaler = 1e6
-legend_loc = (-1.5, 0)
+legend_loc = (-5, 0)
 plot_colors = {'target': 'red',
                'nontarget':'blue',
                'delta': 'black',
