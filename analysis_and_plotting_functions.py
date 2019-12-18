@@ -205,7 +205,8 @@ def subset(ds, submarkup:pd.DataFrame):
     evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((0,0))
     evoked_delta = mne.EvokedArray(info = ds.info,
                                         data = evoked_t._data - evoked_nt._data,
-                                        tmin = constants.epochs_tmin
+                                        tmin = constants.epochs_tmin,
+                                        nave=evoked_t.nave
                                         )
     payload = {
                 'target': evoked_t,
@@ -213,3 +214,94 @@ def subset(ds, submarkup:pd.DataFrame):
                 'delta': evoked_delta
                 }
     return payload
+
+
+
+
+def cluster_and_plot(X, info, times, condition_names, threshold=10, 
+                    n_permutations=10000, tail=1, step_down_p=0, n_jobs=1):
+    """UNTESTED
+    
+    Arguments:
+        X {[type]} -- [description]
+        info {[type]} -- [description]
+        times {[type]} -- [description]
+        condition_names {[type]} -- [description]
+    
+    Keyword Arguments:
+        threshold {int} -- [description] (default: {10})
+        n_permutations {int} -- [description] (default: {10000})
+        tail {int} -- [description] (default: {1})
+    """    
+    connectivity, ch_names = mne.channels.find_ch_connectivity(info, ch_type='eeg')
+    cluster_stats = mne.stats.spatio_temporal_cluster_test( X=X,
+                                                            threshold=threshold, 
+                                                            connectivity=connectivity,
+                                                            n_permutations=n_permutations, 
+                                                            tail=tail,
+                                                            n_jobs=n_jobs,
+                                                            step_down_p=step_down_p
+                                                            )
+    T_obs, clusters, p_values, _ = cluster_stats
+    good_cluster_inds = np.where(p_values < 0.05)[0]
+    if len(p_values[good_cluster_inds]):
+        print (p_values[good_cluster_inds])
+    else:
+        print ("No significant clusters found")
+    # grand average as numpy arrray
+    grand_ave = np.array(X).mean(axis=1)
+
+    # get sensor positions via layout
+    pos = mne.find_layout(info).pos
+
+    # loop over significant clusters
+    for i_clu, clu_idx in enumerate(good_cluster_inds):
+        # unpack cluster information, get unique indices
+        time_inds, space_inds = np.squeeze(clusters[clu_idx])
+        ch_inds = np.unique(space_inds)
+        time_inds = np.unique(time_inds)
+
+        # get topography for F stat
+        f_map = T_obs[time_inds, ...].mean(axis=0)
+
+        # get signals at significant sensors
+        signals = grand_ave[..., ch_inds].mean(axis=-1)
+        sig_times = times[time_inds]
+
+        # create spatial mask
+        mask = np.zeros((f_map.shape[0], 1), dtype=bool)
+        mask[ch_inds, :] = True
+
+        # initialize figure
+        fig, axs = plt.subplots(1, 2, figsize=(12,4))
+        fig.suptitle('Cluster #{0}'.format(i_clu + 1), fontsize=16, x=0.4, y=0.9)
+
+        # plot average test statistic and mark significant sensors
+        image, _ = mne.viz.plot_topomap(f_map, pos, mask=mask, axes=axs[0],
+                            vmin=np.min, vmax=np.max, show=False, 
+                            names=info['ch_names'][0:1] + info['ch_names'][2:], show_names=True)
+        fig.colorbar(image, ax=axs[0], shrink=0.6)
+    
+        axs[0].set_xlabel('Averaged F-map ({:0.1f} - {:0.1f} ms)'.format(*sig_times[[0, -1]]))
+        # add new axis for time courses and plot time courses
+        # ax_signals = divider.append_axes('right', size='300%', pad=1.2)
+        for signal, name in zip(signals, condition_names):
+            axs[1].plot(times, signal, label=name)
+        
+        # add information
+        axs[1].axvline(0, color='k', linestyle=':', label='stimulus onset')
+        axs[1].set_xlim([times[0], times[-1]])
+        axs[1].set_xlabel('time [ms]')
+        axs[1].set_ylabel('uV')
+
+        # plot significant time range
+        ymin, ymax = axs[1].get_ylim()
+        axs[1].fill_betweenx((ymin, ymax), sig_times[0], sig_times[-1],
+                                color='orange', alpha=0.3)
+        axs[1].legend(loc='lower right')
+        axs[1].set_ylim(ymin, ymax)
+
+        # clean up viz
+        mne.viz.tight_layout(fig=fig)
+        fig.subplots_adjust(bottom=.05)
+        plt.show()
