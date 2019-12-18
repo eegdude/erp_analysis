@@ -34,7 +34,7 @@ ms_factor = 1000 // fs
 events_offset = 0.1
 
 epochs_tmin = -0.1
-epochs_tmax = 1
+epochs_tmax = 0.8
 
 epochs_baseline = None
 evoked_baseline = (-0.05, 0)
