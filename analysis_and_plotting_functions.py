@@ -263,7 +263,7 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
 
         # get topography for F stat
         f_map = T_obs[time_inds, ...].mean(axis=0)
-
+        print (f'Mean F-score for cluster {(np.mean(f_map))}')
         # get signals at significant sensors
         signals = grand_ave[..., ch_inds].mean(axis=-1)
         sig_times = times[time_inds]
@@ -271,7 +271,8 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         # create spatial mask
         mask = np.zeros((f_map.shape[0], 1), dtype=bool)
         mask[ch_inds, :] = True
-
+        cluster_channels = [info['ch_names'][n] for n, a in enumerate([a[0] for a in mask]) if a]
+        print (f'Cluster channels {cluster_channels}')
         # initialize figure
         fig, axs = plt.subplots(1, 2, figsize=(12,4))
         fig.suptitle('Cluster #{0}'.format(i_clu + 1), fontsize=16, x=0.4, y=0.9)
@@ -305,3 +306,4 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         mne.viz.tight_layout(fig=fig)
         fig.subplots_adjust(bottom=.05)
         plt.show()
+    return cluster_stats
