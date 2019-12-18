@@ -319,8 +319,9 @@ class EpDatasetCreator():
             fingers = ast.literal_eval(record['fingers'])
 
             epochs_targets = []
-            epochs_chunk_ids = []
+            epochs_ids = []
             epochs_fingers = []
+            sessions_id = []
 
             folder = data_folder / record['user'] / record['folder']
             files_dict = self.get_files(folder)
@@ -335,29 +336,32 @@ class EpDatasetCreator():
 
             assert len(chunked_events) == len(targets), \
                 'number of events is not equal to number of targets'
-
+            session_id=0
             for chunk, target in zip(chunked_events, targets):
                 epochs_chunk_id = 0
                 for event in chunk:
                     epochs_targets.append(target)
-                    epochs_chunk_ids.append(epochs_chunk_id)
+                    epochs_ids.append(epochs_chunk_id)
                     epochs_fingers.append(fingers[event[1]])
+                    sessions_id.append(session_id)
                     epochs_chunk_id += 1
+                session_id += 1
 
             assert  len(epochs) == len(events) and \
                     len(epochs_targets) == len(epochs_fingers) and \
                     len(epochs) == len(epochs_fingers) and \
-                    len(epochs_chunk_ids) == len(epochs), \
+                    len(epochs_ids) == len(epochs), \
                     'something is f-d up, fix it asap'
 
-            for epoch, event, target, finger in zip(epochs, events, epochs_targets, epochs_fingers):
+            for epoch, event, target, finger, session_id in zip(epochs, events, epochs_targets, epochs_fingers, sessions_id):
                 epoch_markup_line = {
                                     'id': self.epoch_counter_global,
                                     'finger': fingers[event[-2]],
                                     'target': target,
                                     'event': event[-2],
                                     'is_target': event[-1],
-                                    'epochs_chunk_id': epochs_chunk_ids[self.epoch_counter_record],
+                                    'epoch_id': epochs_ids[self.epoch_counter_record],
+                                    'session_id': session_id
                                     }
                 epoch_markup_line.update(record)
                 self.global_markup.append(epoch_markup_line)
@@ -425,12 +429,15 @@ class DatasetReader():
         data /= cc
         return mne.EvokedArray(info=self.info,
                                 data=data,
-                                tmin=tmin)
+                                tmin=tmin,
+                                nave=cc)
 
 if __name__ == "__main__":
-    epd = EpDatasetCreator(markup_path=pathlib.Path(r'C:\Data\sensortech\BrailleBCI\test_november\markup.csv'),
-                        database_path=pathlib.Path(r'C:\Data\sensortech\BrailleBCI\test_november_db'),
-                        data_folder=pathlib.Path(r'C:\Data\sensortech\BrailleBCI\test_november'),
-                        reference_mode='original', 
-                        ICA=False,
-                        ignore_users=['test'])
+    # Create dataset from raw data
+    EpDatasetCreator(markup_path=folders.markup_path,
+                            database_path=folders.database_path_car_ica_new,
+                            data_folder=folders.data_folder,
+                            reference_mode='average', 
+                            ICA=True,
+                            fit_with_additional_lowpass=True
+                            )
