@@ -201,8 +201,8 @@ def subset(ds, submarkup:pd.DataFrame):
     subset_t = submarkup.loc[submarkup['is_target'] == 1]
     subset_nt = submarkup.loc[submarkup['is_target'] == 0]
 
-    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline((0,0))
-    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((0,0))
+    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline((-0.05,0))
+    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((-0.05, 0))
     evoked_delta = mne.EvokedArray(info = ds.info,
                                         data = evoked_t._data - evoked_nt._data,
                                         tmin = constants.epochs_tmin,
@@ -219,7 +219,7 @@ def subset(ds, submarkup:pd.DataFrame):
 
 
 def cluster_and_plot(X, info, times, condition_names, threshold=10, 
-                    n_permutations=10000, tail=1, step_down_p=0, n_jobs=1):
+                    n_permutations=10000, tail=1, step_down_p=0, n_jobs=1, cutoff_pval=0.05):
     """UNTESTED
     
     Arguments:
@@ -243,7 +243,7 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
                                                             step_down_p=step_down_p
                                                             )
     T_obs, clusters, p_values, _ = cluster_stats
-    good_cluster_inds = np.where(p_values < 0.05)[0]
+    good_cluster_inds = np.where(p_values < cutoff_pval)[0]
     if len(p_values[good_cluster_inds]):
         print (p_values[good_cluster_inds])
     else:

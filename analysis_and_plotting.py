@@ -35,7 +35,7 @@ plt.rcParams['figure.figsize'] = [12,6]
 #                         )
 # %%
 # Load dataset into memory (if short of memory, use preload=False)
-ds = dataset.DatasetReader(data_path=folders.database_path_car_ica, preload=True)
+ds = dataset.DatasetReader(data_path=folders.database_path, preload=True)
 
 # %%
 # blind vs sighted
@@ -49,6 +49,9 @@ def single_reg(markup, reg = 'brl_static6_all1', draw=True):
                                 (markup['reg'] == reg)
                                 ]
     payload_sighted = aps.subset(ds, subset_sighted)
+
+    # payload_sighted = {key:compute_current_source_density(payload_sighted[key], copy=True) for key in payload_sighted.keys()}
+    # payload_blind = {key:compute_current_source_density(payload_blind[key], copy=True) for key in payload_sighted.keys()}
 
     if draw:
         aps.plot_evoked_response(data=payload_blind, title='blind subjects')
@@ -84,7 +87,7 @@ def single_reg(markup, reg = 'brl_static6_all1', draw=True):
 
     return payload_blind, payload_sighted
 #%%
-single_reg(ds.markup, reg = 'brl_static6_all1')
+# single_reg(ds.markup, reg = 'brl_static6_all1')
 single_reg(ds.markup, reg = 'brl_static6_all8')
 #%%
 def regs(demography = 'blind', draw=True):

@@ -435,7 +435,7 @@ class DatasetReader():
 if __name__ == "__main__":
     # Create dataset from raw data
     EpDatasetCreator(markup_path=folders.markup_path,
-                            database_path=folders.database_path_car_ica_new,
+                            database_path=folders.database_path,
                             data_folder=folders.data_folder,
                             reference_mode='average', 
                             ICA=True,
