@@ -392,20 +392,29 @@ class DatasetReader():
                                     'blind':int,
                                     'user':str,
                                     })
+        self.db_size = self.markup['id'].shape[0]
+        self.percentage_read = 0
 
         if preload:
             self.load_epoch = self.load_from_memory
             self.global_in_memory_database = [self.load_pickle(id) for id in self.markup['id']]
         else:
             self.load_epoch = self.load_pickle
-
+    
+    def load_from_disc():
+        database_size = markup['id'].shape[0]
+        total = (self.markup['id'])
     def load_from_memory(self, id: int) -> np.ndarray:
         return self.global_in_memory_database[id]
 
-    def load_pickle(self, id: int) -> np.ndarray:
+    def load_pickle(self, id: int , verbose=True) -> np.ndarray:
         with open(self.data_path / f'{id}.pickle', 'rb') as p:
             epoch = pickle.load(p)
             epoch *= constants.uV_scaler
+        if verbose:
+            if id/self.db_size*100 - self.percentage_read >= 1:
+                self.percentage_read = int(id/self.db_size*100)
+                print (f"\r{self.percentage_read } percent complete", end='')
         return epoch
 
     def create_binary_events_from_subset(self, subset):
