@@ -429,13 +429,16 @@ class DatasetReader():
         return epochs_subset
     
     def create_mne_evoked_from_subset(self, subset: pd.DataFrame,
-                                            tmin: float=constants.epochs_tmin) -> mne.EpochsArray: 
+                                            tmin: float=constants.epochs_tmin,
+                                            reject_max_delta=1000) -> mne.EpochsArray: 
         data = self.load_epoch(subset['id'].reset_index(drop=True)[0])
         cc = 1
         for id in subset['id'].reset_index(drop=True)[1:]:
-            data += self.load_epoch(id)
-            cc += 1
-        data /= cc
+            ep = self.load_epoch(id)
+            if np.mean(np.max(ep, axis=1)-np.min(ep, axis=1)) < reject_max_delta:
+                data += ep
+                cc += 1
+        data/=cc
         return mne.EvokedArray(info=self.info,
                                 data=data,
                                 tmin=tmin,
