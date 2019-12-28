@@ -187,12 +187,14 @@ def get_peaks_from_evoked(evoked: mne.EvokedArray):
     
 #         return p3peaks, n1peaks, peaks_dict
 
-def subset(ds, submarkup:pd.DataFrame):
+def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
     """Create Mne Evoked arrays for target, nontarget and delta EP
     
     Arguments:
         ds {dataset.DatasetReader} -- dataset
         submarkup {pd.DataFrame} -- subset of ds.markup, meeting any arbitrary condition
+        drop_channels {list} -- channels to remove from evoked array. Defaults to ECG, A1 and A2. 
+                                use empty list to use all channels
     
     Returns:
         dict -- Payload-style dict with target, nontarget and difference EPs for given subset
@@ -203,15 +205,15 @@ def subset(ds, submarkup:pd.DataFrame):
 
     evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline((-0.05,0))
     evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((-0.05, 0))
-    evoked_delta = mne.EvokedArray(info = ds.info,
-                                        data = evoked_t._data - evoked_nt._data,
-                                        tmin = constants.epochs_tmin,
-                                        nave=evoked_t.nave
-                                        )
+    evoked_delta = mne.EvokedArray( info = ds.info,
+                                    data = evoked_t._data - evoked_nt._data,
+                                    tmin = constants.epochs_tmin,
+                                    nave=evoked_t.nave
+                                    )
     payload = {
-                'target': evoked_t,
-                'nontarget': evoked_nt,
-                'delta': evoked_delta
+                'target': evoked_t.drop_channels(drop_channels),
+                'nontarget': evoked_nt.drop_channels(drop_channels),
+                'delta': evoked_delta.drop_channels(drop_channels)
                 }
     return payload
 
