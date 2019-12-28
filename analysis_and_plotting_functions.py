@@ -203,8 +203,8 @@ def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
     subset_t = submarkup.loc[submarkup['is_target'] == 1]
     subset_nt = submarkup.loc[submarkup['is_target'] == 0]
 
-    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline((-0.05,0))
-    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline((-0.05, 0))
+    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline(constants.evoked_baseline)
+    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline(constants.evoked_baseline)
     evoked_delta = mne.EvokedArray( info = ds.info,
                                     data = evoked_t._data - evoked_nt._data,
                                     tmin = constants.epochs_tmin,
