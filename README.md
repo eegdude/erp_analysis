@@ -1,2 +1,2 @@
 # brlbci_analysis
-EEG analysis for Braiile BCI experiment
+EEG analysis for matrix speller BCI experiment
