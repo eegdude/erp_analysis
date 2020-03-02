@@ -1,3 +1,8 @@
+"""
+Iter_topography function from mne-python 0.19.2 with additional parameters for
+tuning y scale and x-y-ticks
+"""
+
 from copy import deepcopy
 from functools import partial
 from itertools import cycle

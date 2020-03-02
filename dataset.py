@@ -425,7 +425,7 @@ class DatasetReader():
         if verbose:
             if id/self.db_size*100 - self.percentage_read >= 1:
                 self.percentage_read = int(id/self.db_size*100)
-                print (f"\r{self.percentage_read } percent complete", end='')
+                print (f"\r{self.percentage_read + 1} percent complete", end='')
         return epoch
 
     def create_binary_events_from_subset(self, subset):
