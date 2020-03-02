@@ -42,9 +42,11 @@ class EegPreprocessing():
             mne.io.RawArray -- filtered and processed EEG data
         """
         raw = self.re_reference(raw)
-        # raw = self.filter_eeg(raw)
         if self.ICA:
             raw = self.reject_eyes(raw, self.fit_with_additional_lowpass)
+        else:
+            raw = self.filter_eeg(raw)
+
         return raw
     
     def create_epochs(self, raw: mne.io.RawArray, events: np.ndarray) -> mne.epochs.Epochs:
@@ -179,10 +181,27 @@ class EpDatasetCreator():
         self.load_eeg_from_markup(data_folder)
 
     def _event_array_labeler(self, array: np.ndarray, target: int):
-        array[:,-1] = [1 if a == target else 0 for a in array[:,-1]]
-        return array
-    
+        '''
+            TODO: better naming
+        '''        
+        if not constants.BCI_type_gropued:
+            array[:,-1] = [1 if a == target else 0 for a in array[:,-1]]
+            return array
+        else:
+            arr = []
+            for event in array[:,-1]:
+                active_stims = constants.groups[event]
+                if target in active_stims:
+                    arr.append(True)
+                else:
+                    arr.append(False)
+            array[:,-1] = arr
+            return array
+
+
+
     def labeler(self, events: list, targets = None):
+        print(len(events), len(targets))
         labeled_events = [self._event_array_labeler(events[a], targets[a])
                         for a in range(len(targets))]
         return labeled_events
@@ -233,6 +252,7 @@ class EpDatasetCreator():
             return read_fif_files(files_dict)
         elif files_dict['eeg'].suffix == '.npy':
             eeg = np.load(files_dict['eeg']).T
+        print (eeg.shape)
         
         evt = np.load(files_dict['evt'])
         if events_offset:
@@ -242,7 +262,8 @@ class EpDatasetCreator():
         # np.savetxt(X = evt.astype('int'), fname=fname, fmt='%i', delimiter=',')
         splitter_list = np.where(evt[:,1] == constants.StartCycle)[0]
         chunked_events = np.split(evt, splitter_list)
-        chunked_events = chunked_events[1:]	#first chunk is empty
+        if not chunked_events[0].shape[0]:      # !!!
+            chunked_events = chunked_events[1:]	#first chunk is empty
         bool_mask = [[ True if int(a) not in constants.technical_markers + ignore_events_id
                         else False for a in b[:,1]]
                         for b in chunked_events]
@@ -316,11 +337,9 @@ class EpDatasetCreator():
             self.epoch_counter_record = 0
 
             targets = ast.literal_eval(record['targets'])
-            fingers = ast.literal_eval(record['fingers'])
 
             epochs_targets = []
             epochs_ids = []
-            epochs_fingers = []
             sessions_id = []
 
             folder = data_folder / record['user'] / record['folder']
@@ -330,8 +349,8 @@ class EpDatasetCreator():
                 targets=targets,
                 events_offset=constants.events_offset)
             events = np.vstack(chunked_events)
-            ecg_events = None                           # later detect ecg events and find time delta with events for every epoch
             raw = self.preprocessing.process_raw_eeg(raw)
+            # raw.plot(block=True, events=events)
             epochs = self.preprocessing.create_epochs(raw, events)
 
             assert len(chunked_events) == len(targets), \
@@ -342,21 +361,17 @@ class EpDatasetCreator():
                 for event in chunk:
                     epochs_targets.append(target)
                     epochs_ids.append(epochs_chunk_id)
-                    epochs_fingers.append(fingers[event[1]])
                     sessions_id.append(session_id)
                     epochs_chunk_id += 1
                 session_id += 1
 
             assert  len(epochs) == len(events) and \
-                    len(epochs_targets) == len(epochs_fingers) and \
-                    len(epochs) == len(epochs_fingers) and \
                     len(epochs_ids) == len(epochs), \
                     'something is f-d up, fix it asap'
 
-            for epoch, event, target, finger, session_id in zip(epochs, events, epochs_targets, epochs_fingers, sessions_id):
+            for epoch, event, target, session_id in zip(epochs, events, epochs_targets, sessions_id):
                 epoch_markup_line = {
                                     'id': self.epoch_counter_global,
-                                    'finger': fingers[event[-2]],
                                     'target': target,
                                     'event': event[-2],
                                     'is_target': event[-1],
@@ -381,15 +396,11 @@ class DatasetReader():
 
         self.markup = pd.read_csv(self.data_path / 'epochs_markup.csv',
                             dtype = {'id':int,
-                                    'finger':int,
                                     'event':int,
                                     'target':int,
                                     'is_target':int,
                                     'epochs_chunk_id':int,
                                     'folder':str,
-                                    'ecg_r_peak_up':int,
-                                    'reading_finger':object,
-                                    'blind':int,
                                     'user':str,
                                     })
         self.db_size = self.markup['id'].shape[0]
@@ -425,9 +436,9 @@ class DatasetReader():
         epochs_subset = mne.EpochsArray(data=epochs_subset,
                                         info=self.info,
                                         tmin=constants.epochs_tmin,
-                                        events=self.create_binary_events_from_subset(subset)                                        )
+                                        events=self.create_binary_events_from_subset(subset))
         return epochs_subset
-    
+
     def create_mne_evoked_from_subset(self, subset: pd.DataFrame,
                                             tmin: float=constants.epochs_tmin,
                                             reject_max_delta=1000) -> mne.EpochsArray: 
@@ -442,14 +453,14 @@ class DatasetReader():
         return mne.EvokedArray(info=self.info,
                                 data=data,
                                 tmin=tmin,
-                                nave=cc)
+                                nave=cc) 
 
 if __name__ == "__main__":
     # Create dataset from raw data
     EpDatasetCreator(markup_path=folders.markup_path,
                             database_path=folders.database_path,
                             data_folder=folders.data_folder,
-                            reference_mode='average', 
-                            ICA=True,
+                            reference_mode='average',
+                            ICA=False,
                             fit_with_additional_lowpass=True
                             )
