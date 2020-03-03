@@ -86,7 +86,9 @@ def plot_evoked_response(data: dict,
                     section = [a for a in data['aim'].times if a >= n1p[0] - 0.015 and a < n1p[0] + 0.015]
                     ax.fill_between(section, fsection, color = 'green', alpha=0.6)
 
-    legend = tpplt[0][0].legend(loc = constants.legend_loc, prop={'size': 10})
+    # legend = tpplt[0][0].legend(loc = 'upper left', bbox_to_anchor=[-10, -10] prop={'size': 10})
+    lhl = tpplt[n][0].get_legend_handles_labels()
+    fig.legend(lhl[0], lhl[1], loc = 'upper left')
     if fname:
         plt.savefig(fname, dpi = 200)
     else:
@@ -106,6 +108,7 @@ def plot_vectors_with_peaks(vector: np.ndarray,
         n1_data {int} -- [description] (default: {None})
         n4_data {int} -- [description] (default: {None})
     """                            
+    
     zero = int(np.abs(constants.epochs_tmin)*constants.fs)
     xaxis = list(range(-1*zero, vector.shape[0]*constants.ms_factor - zero, constants.ms_factor))
     plt.plot(xaxis, vector)
