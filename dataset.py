@@ -406,7 +406,7 @@ class DatasetReader():
 
         if preload:
             self.load_epoch = self.load_from_memory
-            self.global_in_memory_database = [self.load_pickle(id) for id in self.markup['id']]
+            self.global_in_memory_database = {id:self.load_pickle(id) for id in self.markup['id']}
         else:
             self.load_epoch = self.load_pickle
     
@@ -455,7 +455,7 @@ class DatasetReader():
         evoked = mne.EvokedArray(info=self.info,
                                 data=data,
                                 tmin=tmin,
-                                nave=cc) 
+                                nave=cc)
         if reference:
             evoked = evoked.set_eeg_reference(reference)
         return evoked
