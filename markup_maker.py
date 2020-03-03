@@ -1,11 +1,13 @@
 import os
 import pathlib
 import csv
-p = pathlib.Path('.')
 
+import folders
+
+p = pathlib.Path(folders.data_folder)
 users = [str(a) for a in range(1, 17)]
 
-with open('markup.csv', 'w', newline='') as csvfile:
+with open(folders.markup_path, 'w', newline='') as csvfile:
     fieldnames = ['user','order','folder','reg','targets','ignore_events_id']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
