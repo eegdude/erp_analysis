@@ -34,14 +34,14 @@ with open('markup.csv', 'w', newline='') as csvfile:
                          'order':order.index('all_happy'),
                          'folder':'a_h',
                          'reg':'all_happy',
-                         'targets':[0, 5, 29, 35, 14, 1, 17, 13, 14, 2, 7, 2, 13, 14, 18, 19, 17, 8, 2, 19, 8, 13, 14],
+                         'targets':[0, 5, 29, 35, 14, 1, 8, 13, 8, 14, 18, 19, 17, 20, 12, 4, 14, 19, 0, 19, 8, 13, 14,
                          'ignore_events_id':[]})
 
         writer.writerow({'user':user,
                          'order':order.index('all_neutral'),
                          'folder':'a_n',
                          'reg':'all_neutral',
-                         'targets':[0, 5, 29, 35, 14, 1, 8, 13, 8, 14, 18, 19, 17, 20, 12, 4, 14, 19, 0, 19, 8, 13, 14],            
+                         'targets':[0, 5, 29, 35, 14, 1, 17, 13, 14, 2, 7, 2, 13, 14, 18, 19, 17, 8, 2, 19, 8, 13, 14],
                          'ignore_events_id':[]})
 
         writer.writerow({'user':user,
