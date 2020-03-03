@@ -190,7 +190,7 @@ class EpDatasetCreator():
         else:
             arr = []
             for event in array[:,-1]:
-                active_stims = constants.groups[event]
+                active_stims = constants.groups[event%1000]
                 if target in active_stims:
                     arr.append(True)
                 else:
@@ -198,10 +198,7 @@ class EpDatasetCreator():
             array[:,-1] = arr
             return array
 
-
-
     def labeler(self, events: list, targets = None):
-        print(len(events), len(targets))
         labeled_events = [self._event_array_labeler(events[a], targets[a])
                         for a in range(len(targets))]
         return labeled_events
@@ -223,7 +220,7 @@ class EpDatasetCreator():
         # raw.set_montage(montage, verbose=0)
 
         chunked_events = [np.c_[[np.where(eeg[0,:] >= a )[0][0] for a in chunk[:,0]],
-                        chunk[:,1], chunk[:,1]] for	chunk in chunked_events] # convert chunks to mne format
+                        chunk[:,1], chunk[:,1]] for	chunk in chunked_events] # convert chunks to mne-like format
         chunked_events = [chunk.astype(int) for chunk in chunked_events]
         return raw, chunked_events
 
@@ -370,13 +367,16 @@ class EpDatasetCreator():
                     'something is f-d up, fix it asap'
 
             for epoch, event, target, session_id in zip(epochs, events, epochs_targets, sessions_id):
+                is_rare = event[-2]>=1000
                 epoch_markup_line = {
                                     'id': self.epoch_counter_global,
                                     'target': target,
                                     'event': event[-2],
                                     'is_target': event[-1],
+                                    'is_rare': is_rare,
                                     'epoch_id': epochs_ids[self.epoch_counter_record],
-                                    'session_id': session_id
+                                    'session_id': session_id,
+                                    'valence':record['rare_valence'] if is_rare else record['general_valence']
                                     }
                 epoch_markup_line.update(record)
                 self.global_markup.append(epoch_markup_line)
