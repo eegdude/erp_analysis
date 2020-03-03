@@ -388,8 +388,6 @@ class EpDatasetCreator():
 
 class DatasetReader():
     def __init__(self, data_path: str, preload=False) -> None:
-
-
         self.data_path = pathlib.Path(data_path).resolve()
         with open(self.data_path / 'info.pickle', 'rb') as p:
             self.info = pickle.load(p)
@@ -415,6 +413,7 @@ class DatasetReader():
     def load_from_disc():
         database_size = markup['id'].shape[0]
         total = (self.markup['id'])
+    
     def load_from_memory(self, id: int) -> np.ndarray:
         return self.global_in_memory_database[id]
 
@@ -431,17 +430,20 @@ class DatasetReader():
     def create_binary_events_from_subset(self, subset):
         return np.c_[list(range(len(subset['is_target']))), subset['is_target'], subset['is_target']]
 
-    def create_mne_epochs_from_subset(self, subset: pd.DataFrame) -> mne.EpochsArray: 
+    def create_mne_epochs_from_subset(self, subset: pd.DataFrame, reference=None) -> mne.EpochsArray: 
         epochs_subset = [self.load_epoch(id) for id in subset['id']]
         epochs_subset = mne.EpochsArray(data=epochs_subset,
                                         info=self.info,
                                         tmin=constants.epochs_tmin,
                                         events=self.create_binary_events_from_subset(subset))
+        if reference:
+            epochs_subset = epochs_subset.set_eeg_reference(reference)
         return epochs_subset
 
     def create_mne_evoked_from_subset(self, subset: pd.DataFrame,
                                             tmin: float=constants.epochs_tmin,
-                                            reject_max_delta=1000) -> mne.EpochsArray: 
+                                            reject_max_delta:float=1000,
+                                            reference:list=None) -> mne.EpochsArray: 
         data = self.load_epoch(subset['id'].reset_index(drop=True)[0])
         cc = 1
         for id in subset['id'].reset_index(drop=True)[1:]:
@@ -450,17 +452,20 @@ class DatasetReader():
                 data += ep
                 cc += 1
         data/=cc
-        return mne.EvokedArray(info=self.info,
+        evoked = mne.EvokedArray(info=self.info,
                                 data=data,
                                 tmin=tmin,
                                 nave=cc) 
+        if reference:
+            evoked = evoked.set_eeg_reference(reference)
+        return evoked
 
 if __name__ == "__main__":
     # Create dataset from raw data
     EpDatasetCreator(markup_path=folders.markup_path,
                             database_path=folders.database_path,
                             data_folder=folders.data_folder,
-                            reference_mode='average',
+                            reference_mode=[],
                             ICA=False,
                             fit_with_additional_lowpass=True
                             )

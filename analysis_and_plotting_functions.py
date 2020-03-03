@@ -190,7 +190,7 @@ def get_peaks_from_evoked(evoked: mne.EvokedArray):
     
 #         return p3peaks, n1peaks, peaks_dict
 
-def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
+def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2'], reference = []):
     """Create Mne Evoked arrays for target, nontarget and delta EP
     
     Arguments:
@@ -206,8 +206,8 @@ def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
     subset_t = submarkup.loc[submarkup['is_target'] == 1]
     subset_nt = submarkup.loc[submarkup['is_target'] == 0]
 
-    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline(constants.evoked_baseline)
-    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline(constants.evoked_baseline)
+    evoked_t = ds.create_mne_evoked_from_subset(subset_t, reference=reference).apply_baseline(constants.evoked_baseline)
+    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt, reference=reference).apply_baseline(constants.evoked_baseline)
     evoked_delta = mne.EvokedArray( info = ds.info,
                                     data = evoked_t._data - evoked_nt._data,
                                     tmin = constants.epochs_tmin,
@@ -219,8 +219,6 @@ def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
                 'delta': evoked_delta.drop_channels(drop_channels)
                 }
     return payload
-
-
 
 
 def cluster_and_plot(X, info, times, condition_names, threshold=10, 
