@@ -46,7 +46,7 @@ def plot_evoked_response(data: dict,
     fig.suptitle(title, x=0.1, y=0.9, fontsize=20)
     tpplt = [a for a in iter_topography_fork._iter_topography(info, layout=None, on_pick=None, fig=fig, layout_scale=0.945,
                                                     fig_facecolor='white', axis_facecolor='white', axis_spinecolor='white',
-                                                    hide_xticklabels=True, hide_yticklabels=False, y_scale=3)]
+                                                    hide_xticklabels=True, hide_yticklabels=False, y_scale=1)]
     
     ylim_top = np.max([np.max(data[i].data[ch]) for ch in channel_inds for i in data.keys()])*1.2
     ylim_bottom = np.min([np.min(data[i].data[ch]) for ch in channel_inds for i in data.keys()])*1.2
@@ -107,7 +107,7 @@ def plot_vectors_with_peaks(vector: np.ndarray,
         p3_data {int} -- [description] (default: {None})
         n1_data {int} -- [description] (default: {None})
         n4_data {int} -- [description] (default: {None})
-    """                            
+    """
     
     zero = int(np.abs(constants.epochs_tmin)*constants.fs)
     xaxis = list(range(-1*zero, vector.shape[0]*constants.ms_factor - zero, constants.ms_factor))
@@ -149,7 +149,7 @@ def plot_vectors_with_peaks(vector: np.ndarray,
         plt.axvline(zero, color = 'black')
         plt.axvline(zero + 300, linestyle = '--')
     plt.show()
-    
+
 def get_peaks_from_evoked(evoked: mne.EvokedArray):
     """
         UNTESTED
@@ -187,7 +187,7 @@ def get_peaks_from_evoked(evoked: mne.EvokedArray):
 #             if p in ["po7", "po8","o1","oz","o2"]:
 #                 peaks_dict['n1a_{}'.format(p) ] = n1peaks[p][1]
 #                 peaks_dict['n1i_{}'.format(p) ] = n1peaks[p][0]
-    
+
 #         return p3peaks, n1peaks, peaks_dict
 
 def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2'], reference = []):
