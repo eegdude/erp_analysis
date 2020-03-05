@@ -43,7 +43,6 @@ def plot_evoked_response(data: dict,
 
 
     fig = plt.figure()
-    fig.suptitle(title, x=0.1, y=0.9, fontsize=20)
     tpplt = [a for a in iter_topography_fork._iter_topography(info, layout=None, on_pick=None, fig=fig, layout_scale=0.945,
                                                     fig_facecolor='white', axis_facecolor='white', axis_spinecolor='white',
                                                     hide_xticklabels=True, hide_yticklabels=False, y_scale=1)]
@@ -89,6 +88,8 @@ def plot_evoked_response(data: dict,
     # legend = tpplt[0][0].legend(loc = 'upper left', bbox_to_anchor=[-10, -10] prop={'size': 10})
     lhl = tpplt[n][0].get_legend_handles_labels()
     fig.legend(lhl[0], lhl[1], loc = 'upper left')
+    fig.suptitle(title, fontsize=20)
+    
     if fname:
         plt.savefig(fname, dpi = 200)
     else:
