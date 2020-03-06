@@ -12,6 +12,7 @@ technical_markers = [StartCycle, EndCycle, EndLearn, EndAll, StartPlay]
 
 parents = list(pathlib.Path(__file__).parents)
 pics_folder = pathlib.Path(parents[0] / 'pics')
+BCI_type_gropued = False
 
 ch_names = ['Fp1', 'ecg', 'Fp2', 'F3', 'Fz', 'F4', 'FC5', 'FC3', 
 			'FC1', 'FCz', 'FC2', 'FC4', 'FC6', 'T7', 'C5', 'C3', 

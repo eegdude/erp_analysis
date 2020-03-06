@@ -43,10 +43,9 @@ def plot_evoked_response(data: dict,
 
 
     fig = plt.figure()
-    fig.suptitle(title, x=0.1, y=0.9, fontsize=20)
     tpplt = [a for a in iter_topography_fork._iter_topography(info, layout=None, on_pick=None, fig=fig, layout_scale=0.945,
                                                     fig_facecolor='white', axis_facecolor='white', axis_spinecolor='white',
-                                                    hide_xticklabels=True, hide_yticklabels=False, y_scale=3)]
+                                                    hide_xticklabels=True, hide_yticklabels=False, y_scale=1)]
     
     ylim_top = np.max([np.max(data[i].data[ch]) for ch in channel_inds for i in data.keys()])*1.2
     ylim_bottom = np.min([np.min(data[i].data[ch]) for ch in channel_inds for i in data.keys()])*1.2
@@ -86,7 +85,11 @@ def plot_evoked_response(data: dict,
                     section = [a for a in data['aim'].times if a >= n1p[0] - 0.015 and a < n1p[0] + 0.015]
                     ax.fill_between(section, fsection, color = 'green', alpha=0.6)
 
-    legend = tpplt[0][0].legend(loc = constants.legend_loc, prop={'size': 10})
+    # legend = tpplt[0][0].legend(loc = 'upper left', bbox_to_anchor=[-10, -10] prop={'size': 10})
+    lhl = tpplt[n][0].get_legend_handles_labels()
+    fig.legend(lhl[0], lhl[1], loc = 'upper left')
+    fig.suptitle(title, fontsize=20)
+    
     if fname:
         plt.savefig(fname, dpi = 200)
     else:
@@ -105,7 +108,8 @@ def plot_vectors_with_peaks(vector: np.ndarray,
         p3_data {int} -- [description] (default: {None})
         n1_data {int} -- [description] (default: {None})
         n4_data {int} -- [description] (default: {None})
-    """                            
+    """
+    
     zero = int(np.abs(constants.epochs_tmin)*constants.fs)
     xaxis = list(range(-1*zero, vector.shape[0]*constants.ms_factor - zero, constants.ms_factor))
     plt.plot(xaxis, vector)
@@ -146,7 +150,7 @@ def plot_vectors_with_peaks(vector: np.ndarray,
         plt.axvline(zero, color = 'black')
         plt.axvline(zero + 300, linestyle = '--')
     plt.show()
-    
+
 def get_peaks_from_evoked(evoked: mne.EvokedArray):
     """
         UNTESTED
@@ -184,10 +188,10 @@ def get_peaks_from_evoked(evoked: mne.EvokedArray):
 #             if p in ["po7", "po8","o1","oz","o2"]:
 #                 peaks_dict['n1a_{}'.format(p) ] = n1peaks[p][1]
 #                 peaks_dict['n1i_{}'.format(p) ] = n1peaks[p][0]
-    
+
 #         return p3peaks, n1peaks, peaks_dict
 
-def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
+def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2'], reference = []):
     """Create Mne Evoked arrays for target, nontarget and delta EP
     
     Arguments:
@@ -203,8 +207,8 @@ def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
     subset_t = submarkup.loc[submarkup['is_target'] == 1]
     subset_nt = submarkup.loc[submarkup['is_target'] == 0]
 
-    evoked_t = ds.create_mne_evoked_from_subset(subset_t).apply_baseline(constants.evoked_baseline)
-    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline(constants.evoked_baseline)
+    evoked_t = ds.create_mne_evoked_from_subset(subset_t, reference=reference).apply_baseline(constants.evoked_baseline)
+    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt, reference=reference).apply_baseline(constants.evoked_baseline)
     evoked_delta = mne.EvokedArray( info = ds.info,
                                     data = evoked_t._data - evoked_nt._data,
                                     tmin = constants.epochs_tmin,
@@ -216,8 +220,6 @@ def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2']):
                 'delta': evoked_delta.drop_channels(drop_channels)
                 }
     return payload
-
-
 
 
 def cluster_and_plot(X, info, times, condition_names, threshold=10, 
@@ -282,14 +284,19 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         # plot average test statistic and mark significant sensors
         image, _ = mne.viz.plot_topomap(f_map, pos, mask=mask, axes=axs[0],
                             vmin=np.min, vmax=np.max, show=False, 
-                            names=info['ch_names'][0:1] + info['ch_names'][2:], show_names=True)
+                            names=info['ch_names'][0:1] + info['ch_names'][2:], show_names=False,
+                            extrapolate='head', contours=10, outlines='skirt', mask_params={'markersize':6, 'markerfacecolor':'blue'})
         fig.colorbar(image, ax=axs[0], shrink=0.6)
     
         axs[0].set_xlabel('Averaged F-map ({:0.1f} - {:0.1f} ms)'.format(*sig_times[[0, -1]]))
         # add new axis for time courses and plot time courses
         # ax_signals = divider.append_axes('right', size='300%', pad=1.2)
         for signal, name in zip(signals, condition_names):
-            axs[1].plot(times, signal, label=name)
+            if name in list(constants.plot_colors.keys()):
+                color = constants.plot_colors[name]
+            else:
+                color = None
+            axs[1].plot(times, signal, label=name, color=color)
         
         # add information
         axs[1].axvline(0, color='k', linestyle=':', label='stimulus onset')

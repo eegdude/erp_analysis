@@ -42,9 +42,11 @@ class EegPreprocessing():
             mne.io.RawArray -- filtered and processed EEG data
         """
         raw = self.re_reference(raw)
-        # raw = self.filter_eeg(raw)
         if self.ICA:
             raw = self.reject_eyes(raw, self.fit_with_additional_lowpass)
+        else:
+            raw = self.filter_eeg(raw)
+
         return raw
     
     def create_epochs(self, raw: mne.io.RawArray, events: np.ndarray) -> mne.epochs.Epochs:
@@ -179,8 +181,22 @@ class EpDatasetCreator():
         self.load_eeg_from_markup(data_folder)
 
     def _event_array_labeler(self, array: np.ndarray, target: int):
+        '''
+            TODO: better naming
+        '''        
+        if not constants.BCI_type_gropued:
         array[:,-1] = [1 if a == target else 0 for a in array[:,-1]]
         return array
+        else:
+            arr = []
+            for event in array[:,-1]:
+                active_stims = constants.groups[event%1000]
+                if target in active_stims:
+                    arr.append(True)
+                else:
+                    arr.append(False)
+            array[:,-1] = arr
+            return array
     
     def labeler(self, events: list, targets = None):
         labeled_events = [self._event_array_labeler(events[a], targets[a])
@@ -204,7 +220,7 @@ class EpDatasetCreator():
         # raw.set_montage(montage, verbose=0)
 
         chunked_events = [np.c_[[np.where(eeg[0,:] >= a )[0][0] for a in chunk[:,0]],
-                        chunk[:,1], chunk[:,1]] for	chunk in chunked_events] # convert chunks to mne format
+                        chunk[:,1], chunk[:,1]] for	chunk in chunked_events] # convert chunks to mne-like format
         chunked_events = [chunk.astype(int) for chunk in chunked_events]
         return raw, chunked_events
 
@@ -242,6 +258,7 @@ class EpDatasetCreator():
         # np.savetxt(X = evt.astype('int'), fname=fname, fmt='%i', delimiter=',')
         splitter_list = np.where(evt[:,1] == constants.StartCycle)[0]
         chunked_events = np.split(evt, splitter_list)
+        if not chunked_events[0].shape[0]:      # !!!
         chunked_events = chunked_events[1:]	#first chunk is empty
         bool_mask = [[ True if int(a) not in constants.technical_markers + ignore_events_id
                         else False for a in b[:,1]]
@@ -332,6 +349,7 @@ class EpDatasetCreator():
             events = np.vstack(chunked_events)
             ecg_events = None                           # later detect ecg events and find time delta with events for every epoch
             raw = self.preprocessing.process_raw_eeg(raw)
+            # raw.plot(block=True, events=events)
             epochs = self.preprocessing.create_epochs(raw, events)
 
             assert len(chunked_events) == len(targets), \
@@ -397,13 +415,14 @@ class DatasetReader():
 
         if preload:
             self.load_epoch = self.load_from_memory
-            self.global_in_memory_database = [self.load_pickle(id) for id in self.markup['id']]
+            self.global_in_memory_database = {id:self.load_pickle(id) for id in self.markup['id']}
         else:
             self.load_epoch = self.load_pickle
     
     def load_from_disc():
         database_size = markup['id'].shape[0]
         total = (self.markup['id'])
+    
     def load_from_memory(self, id: int) -> np.ndarray:
         return self.global_in_memory_database[id]
 
@@ -420,17 +439,20 @@ class DatasetReader():
     def create_binary_events_from_subset(self, subset):
         return np.c_[list(range(len(subset['is_target']))), subset['is_target'], subset['is_target']]
 
-    def create_mne_epochs_from_subset(self, subset: pd.DataFrame) -> mne.EpochsArray: 
+    def create_mne_epochs_from_subset(self, subset: pd.DataFrame, reference=None) -> mne.EpochsArray: 
         epochs_subset = [self.load_epoch(id) for id in subset['id']]
         epochs_subset = mne.EpochsArray(data=epochs_subset,
                                         info=self.info,
                                         tmin=constants.epochs_tmin,
-                                        events=self.create_binary_events_from_subset(subset)                                        )
+                                        events=self.create_binary_events_from_subset(subset))
+        if reference:
+            epochs_subset = epochs_subset.set_eeg_reference(reference)
         return epochs_subset
     
     def create_mne_evoked_from_subset(self, subset: pd.DataFrame,
                                             tmin: float=constants.epochs_tmin,
-                                            reject_max_delta=1000) -> mne.EpochsArray: 
+                                            reject_max_delta:float=1000,
+                                            reference:list=None) -> mne.EpochsArray: 
         data = self.load_epoch(subset['id'].reset_index(drop=True)[0])
         cc = 1
         for id in subset['id'].reset_index(drop=True)[1:]:
@@ -439,10 +461,13 @@ class DatasetReader():
                 data += ep
                 cc += 1
         data/=cc
-        return mne.EvokedArray(info=self.info,
+        evoked = mne.EvokedArray(info=self.info,
                                 data=data,
                                 tmin=tmin,
                                 nave=cc)
+        if reference:
+            evoked = evoked.set_eeg_reference(reference)
+        return evoked
 
 if __name__ == "__main__":
     # Create dataset from raw data
