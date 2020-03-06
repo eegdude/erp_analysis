@@ -54,6 +54,9 @@ plot_colors = {'target': 'red',
                'nontarget':'blue',
                'delta': 'black',
 
-               'ig_setup_a1a2': 'green',
-               'ig_setup_mono':'indigo'
-			   }
+                'r_n':'red',
+                'a_h':'green',
+                'a_n':'blue',
+                'r_h':'indigo',
+                'a_pixel':'yellow',
+			}
