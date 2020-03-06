@@ -443,7 +443,7 @@ class DatasetReader():
     def create_mne_evoked_from_subset(self, subset: pd.DataFrame,
                                             tmin: float=constants.epochs_tmin,
                                             reject_max_delta:float=1000,
-                                            reference:list=None) -> mne.EpochsArray: 
+                                            reference:list=[]) -> mne.EpochsArray: 
         data = self.load_epoch(subset['id'].reset_index(drop=True)[0])
         cc = 1
         for id in subset['id'].reset_index(drop=True)[1:]:
@@ -456,8 +456,7 @@ class DatasetReader():
                                 data=data,
                                 tmin=tmin,
                                 nave=cc)
-        if reference:
-            evoked = evoked.set_eeg_reference(reference)
+        evoked = evoked.set_eeg_reference(reference)
         return evoked
 
 if __name__ == "__main__":
