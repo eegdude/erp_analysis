@@ -284,14 +284,19 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         # plot average test statistic and mark significant sensors
         image, _ = mne.viz.plot_topomap(f_map, pos, mask=mask, axes=axs[0],
                             vmin=np.min, vmax=np.max, show=False, 
-                            names=info['ch_names'][0:1] + info['ch_names'][2:], show_names=True)
+                            names=info['ch_names'][0:1] + info['ch_names'][2:], show_names=False,
+                            extrapolate='head', contours=10, outlines='skirt', mask_params={'markersize':6, 'markerfacecolor':'blue'})
         fig.colorbar(image, ax=axs[0], shrink=0.6)
     
         axs[0].set_xlabel('Averaged F-map ({:0.1f} - {:0.1f} ms)'.format(*sig_times[[0, -1]]))
         # add new axis for time courses and plot time courses
         # ax_signals = divider.append_axes('right', size='300%', pad=1.2)
         for signal, name in zip(signals, condition_names):
-            axs[1].plot(times, signal, label=name)
+            if name in list(constants.plot_colors.keys()):
+                color = constants.plot_colors[name]
+            else:
+                color = None
+            axs[1].plot(times, signal, label=name, color=color)
         
         # add information
         axs[1].axvline(0, color='k', linestyle=':', label='stimulus onset')
