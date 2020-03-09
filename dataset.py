@@ -1,4 +1,3 @@
-import constants, folders
 import pickle
 import pathlib
 import shutil
@@ -6,10 +5,14 @@ import csv
 import ast
 import sys
 import copy
+
 import numpy as np
 import pandas as pd
-import mne
 
+import mne
+import heartpy as hp
+
+import constants, folders
 # mne.set_log_level(constants.mne_verbose_level)
 class EegPreprocessing():
     """Process raw EEG and create epochs from single file
@@ -23,7 +26,8 @@ class EegPreprocessing():
                                     original reference, or any supported MNE 
                                     reference argument. usually it's better to 
                                     re-reference evoked data, unless it's needed
-                                    for some continious eeg preprocessing
+                                    for some continious eeg preprocessing.
+                                    See `mne.set_eeg_reference` for details.
                                     (default: {'original'})
             ICA {bool} -- Whether to remove eye movements articact with ICA. 
                           ICA params are in constants.py (default: {False})
@@ -106,8 +110,10 @@ class EegPreprocessing():
             mne.io.RawArray -- Re-referenced EEG
         """
         if self.reference_mode == 'original':
+            print('preserving original refrence')
             raw = raw.set_eeg_reference(ref_channels=[], projection=False)
         else:
+            print(f'applying {self.reference_mode} refrence')
             raw = raw.set_eeg_reference(ref_channels=self.reference_mode, projection=False)
         return raw
     
@@ -146,7 +152,8 @@ class EpDatasetCreator():
                 ignore_users: list=[],
                 reference_mode: str='original',
                 ICA: bool=False,
-                fit_with_additional_lowpass: bool=False):
+                fit_with_additional_lowpass: bool=False,
+                ecg_analysis:str=None):
         """Read raw data from BCI and create database with per-epoch markup
         
         Arguments:
@@ -163,8 +170,8 @@ class EpDatasetCreator():
             ICA {bool} -- Whether to remove eye movements articact with ICA. 
                           ICA params are in constants.py (default: {False})
         """
-
         self.ignore_users = ignore_users
+        self.ecg_analysis = ecg_analysis
 
         self.epoch_counter_global = 0
 
@@ -185,8 +192,8 @@ class EpDatasetCreator():
             TODO: better naming
         '''        
         if not constants.BCI_type_gropued:
-        array[:,-1] = [1 if a == target else 0 for a in array[:,-1]]
-        return array
+            array[:,-1] = [1 if a == target else 0 for a in array[:,-1]]
+            return array
         else:
             arr = []
             for event in array[:,-1]:
@@ -259,7 +266,7 @@ class EpDatasetCreator():
         splitter_list = np.where(evt[:,1] == constants.StartCycle)[0]
         chunked_events = np.split(evt, splitter_list)
         if not chunked_events[0].shape[0]:      # !!!
-        chunked_events = chunked_events[1:]	#first chunk is empty
+            chunked_events = chunked_events[1:]	#first chunk is empty
         bool_mask = [[ True if int(a) not in constants.technical_markers + ignore_events_id
                         else False for a in b[:,1]]
                         for b in chunked_events]
@@ -327,6 +334,101 @@ class EpDatasetCreator():
             writer.writeheader()
             for line in self.global_markup:
                 writer.writerow(line)
+    
+    def read_Rpeak_events(self):
+        pass
+
+    def save_Rpeak_events(self, events, folder):
+        if len(events) != 0:
+            print(f'saving R peaks array to {folder}')
+            np.save(arr = events, file = folder / 'Rpeaks.npy')
+
+    def create_Rpeak_events(self, raw, record, hr_events:np.ndarray=[],
+        ecg_channel:int=None):
+        '''
+        refactor
+        '''
+        if not ecg_channel:
+            ecg_channel = constants.ch_names.index('ecg')
+        if np.size(hr_events) == 0:
+            peak_direction = int(record['ecg_r_peak_direction'])
+        
+            if peak_direction in [1, -1]:
+                raw._data[ecg_channel,:] *= peak_direction
+
+            raw = raw.filter(l_freq=5, h_freq=35, verbose='ERROR', picks=[1])
+            filtered = raw._data[ecg_channel,:]
+            filtered = hp.scale_data(filtered)
+            raw = mne.io.RawArray(np.c_[raw._data[ecg_channel,:],
+                                        filtered,
+                                        raw._data[ecg_channel,:] - np.average(raw._data, axis=0)].T,
+                                info = mne.create_info(['ecg', 'filt','car'],
+                                sfreq = raw.info['sfreq'],
+                                ch_types=['ecg', 'misc', 'ecg'])
+                                )
+            try:
+                wd, m = hp.process(filtered, 500,
+                    bpmmin=40, bpmmax=100, reject_segmentwise=True)
+                pl = wd['peaklist']
+                r = wd['removed_beats']
+                pl = np.array([a for a in pl if a not in r])
+                
+                Rpeaks = np.c_[pl,
+                    np.ones(pl.shape)*constants.Rpeak_event,
+                    np.ones(pl.shape)*constants.Rpeak_event]
+                rejected_Rpeaks = np.c_[r,
+                    np.ones(r.shape)*constants.rejected_Rpeak_event,
+                    np.ones(r.shape)*constants.rejected_Rpeak_event]
+                hr_events = np.r_[Rpeaks, rejected_Rpeaks]
+            except:
+                hr_events = np.array([])
+        
+        raw.plot(events=hr_events if np.size(hr_events)>0 else None,
+            event_color={constants.Rpeak_event:'green', constants.rejected_Rpeak_event:'red'},
+            block=True, scalings={'ecg':1e-4, 'misc':1e2}, start=0, duration=5)
+        for n_ann, ann in enumerate(raw.annotations):
+            ann_samp = [int(ann['onset']*raw.info['sfreq']),
+                        int((ann['onset']+ann['duration'])*raw.info['sfreq'])]
+            
+            Rpeaks_inside_annotation = []
+            for n, ev in enumerate(hr_events):
+                if (ev[0] >= min(ann_samp)) and (ev[0] <= max(ann_samp)):
+                    Rpeaks_inside_annotation.append([ev, n])
+            
+            if Rpeaks_inside_annotation:
+                for ev, n in Rpeaks_inside_annotation:
+                    if ev[1] == constants.rejected_Rpeak_event:
+                        ev[1], ev[2] = constants.Rpeak_event, constants.Rpeak_event
+                    elif ev[1] == constants.Rpeak_event:
+                        ev[1], ev[2] = constants.rejected_Rpeak_event, constants.rejected_Rpeak_event
+                    hr_events[n] = ev
+            else:
+                event = ann_samp[0] + np.argmax(raw._data[0,ann_samp[0]:ann_samp[1]])
+                if np.size(hr_events)>0:
+                    hr_events = np.r_[hr_events, [[event, constants.Rpeak_event, constants.Rpeak_event]]]
+                else:
+                    hr_events = np.array([[event, constants.Rpeak_event, constants.Rpeak_event]])
+
+        raw.annotations.crop(0,0) # clear annotations object
+        
+        if np.size(hr_events) > 0:
+            record_length = max(raw._data.shape)/raw.info['sfreq']
+            hr_events = hr_events[np.where(hr_events[:,-1] == constants.Rpeak_event)]
+            print(f'detected {max(np.shape(hr_events)):.0f} R-peaks in {record_length:.0f} seconds of data')
+
+        if self.ecg_analysis == 'manual':
+            fine = input('fine? y/n/discard    ')
+            if fine == 'y':
+                return hr_events
+
+            elif fine == 'n':
+                return self.create_Rpeak_events(raw, record, hr_events)
+            
+            elif fine == 'discard':
+                return np.array([])
+            
+            else:
+                return np.array([])
 
     def load_eeg_from_markup(self, data_folder: pathlib.Path) -> None:
         for record in self.markup:
@@ -347,9 +449,23 @@ class EpDatasetCreator():
                 targets=targets,
                 events_offset=constants.events_offset)
             events = np.vstack(chunked_events)
-            ecg_events = None                           # later detect ecg events and find time delta with events for every epoch
             raw = self.preprocessing.process_raw_eeg(raw)
-            # raw.plot(block=True, events=events)
+
+            if self.ecg_analysis == 'manual':
+                hr_events = self.create_Rpeak_events(raw, record)
+                self.save_Rpeak_events(hr_events, folder)
+                continue
+
+            elif self.ecg_analysis == 'processed':
+                hr_events = self.read_Rpeak_events()
+
+            elif self.ecg_analysis == 'automatic':
+                raise NotImplementedError
+
+            elif not self.ecg_analysis:
+                hr_events = []
+                pass
+
             epochs = self.preprocessing.create_epochs(raw, events)
 
             assert len(chunked_events) == len(targets), \
@@ -470,11 +586,13 @@ class DatasetReader():
         return evoked
 
 if __name__ == "__main__":
-    # Create dataset from raw data
-    EpDatasetCreator(markup_path=folders.markup_path,
-                            database_path=folders.database_path,
+    # Create dataset from raw data\
+    
+    epd = EpDatasetCreator( markup_path=folders.markup_path_2reg,
+                            database_path=folders.database_path_heart,
                             data_folder=folders.data_folder,
-                            reference_mode='average', 
-                            ICA=True,
-                            fit_with_additional_lowpass=True
+                            reference_mode='original',
+                            ICA=False,
+                            fit_with_additional_lowpass=False,
+                            ecg_analysis = 'manual',
                             )
