@@ -10,7 +10,7 @@ StartPlay = 999888
 EndAll = 999
 Rpeak_event = 200
 rejected_Rpeak_event = 404
-
+Rpeaks_filename ='Rpeaks.npy'
 technical_markers = [StartCycle, EndCycle, EndLearn, EndAll, StartPlay]
 
 parents = list(pathlib.Path(__file__).parents)

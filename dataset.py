@@ -3,6 +3,7 @@ import pathlib
 import shutil
 import csv
 import ast
+import os
 import sys
 import copy
 
@@ -430,6 +431,28 @@ class EpDatasetCreator():
             else:
                 return np.array([])
 
+    def ecg_analysis_routine(self, raw, folder, record, events):
+        if self.ecg_analysis == 'manual':
+            hr_events = self.read_Rpeak_events(folder)
+            if hr_events is None:
+                hr_events = self.create_Rpeak_events(raw, record, events)
+                self.save_Rpeak_events(hr_events, folder)
+                return 'contiune'
+            else:
+                print(f'read {max(np.shape(hr_events)):.0f} R-peaks in {self.record_length:.0f} seconds of data')
+
+        elif self.ecg_analysis == 'processed':
+            hr_events = self.read_Rpeak_events(folder)
+        elif self.ecg_analysis == 'automatic':
+            raise NotImplementedError
+        elif not self.ecg_analysis:
+            hr_events = None
+            pass
+        if np.size(hr_events) == 0:
+            hr_events = None
+        
+        return hr_events
+                
     def load_eeg_from_markup(self, data_folder: pathlib.Path) -> None:
         for record in self.markup:
             self.epoch_counter_record = 0
@@ -451,23 +474,9 @@ class EpDatasetCreator():
             events = np.vstack(chunked_events)
             raw = self.preprocessing.process_raw_eeg(raw)
 
-            if self.ecg_analysis == 'manual':
-                hr_events = self.create_Rpeak_events(raw, record)
-                self.save_Rpeak_events(hr_events, folder)
-                continue
-
-            elif self.ecg_analysis == 'processed':
-                hr_events = self.read_Rpeak_events()
-
-            elif self.ecg_analysis == 'automatic':
-                raise NotImplementedError
-
-            elif not self.ecg_analysis:
-                hr_events = []
-                pass
+            hr_events = self.ecg_analysis_routine(raw, folder, record, events)
 
             epochs = self.preprocessing.create_epochs(raw, events)
-
             assert len(chunked_events) == len(targets), \
                 'number of events is not equal to number of targets'
             session_id=0
@@ -487,7 +496,22 @@ class EpDatasetCreator():
                     len(epochs_ids) == len(epochs), \
                     'something is f-d up, fix it asap'
 
+            # if hr_events is not None:
+            #     plot_events = np.r_[hr_events, events]
+            # else:
+            #     plot_events = events
+            # raw.plot(events=plot_events,
+            #     event_color={constants.Rpeak_event:'green', constants.rejected_Rpeak_event:'red', -1:'#fae5ac'},
+            #     block=True, scalings={'ecg':1e-4, 'misc':1e2}, start=0, duration=5)
+
             for epoch, event, target, finger, session_id in zip(epochs, events, epochs_targets, epochs_fingers, sessions_id):
+                if hr_events is not None:
+                    r_deltas = hr_events[:,0] - event[0]
+                    ms_before_r = np.min(r_deltas[r_deltas>=0])*constants.ms_factor
+                    ms_after_r = abs(np.max(r_deltas[r_deltas<0])*constants.ms_factor)
+                else:
+                    ms_after_r = None
+                    ms_before_r = None
                 epoch_markup_line = {
                                     'id': self.epoch_counter_global,
                                     'finger': fingers[event[-2]],
@@ -495,7 +519,9 @@ class EpDatasetCreator():
                                     'event': event[-2],
                                     'is_target': event[-1],
                                     'epoch_id': epochs_ids[self.epoch_counter_record],
-                                    'session_id': session_id
+                                    'session_id': session_id,
+                                    'ms_after_r':ms_after_r,
+                                    'ms_before_r':ms_before_r
                                     }
                 epoch_markup_line.update(record)
                 self.global_markup.append(epoch_markup_line)
@@ -525,6 +551,8 @@ class DatasetReader():
                                     'reading_finger':object,
                                     'blind':int,
                                     'user':str,
+                                    'ms_after_r':float,
+                                    'ms_before_r':float
                                     })
         self.db_size = self.markup['id'].shape[0]
         self.percentage_read = 0
