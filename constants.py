@@ -57,14 +57,14 @@ plot_colors = {'target': 'red',
                'nontarget':'blue',
                'delta': 'black',
 
-               'brl_static6_all8': 'green',
-               'brl_static6_all1':'yellow',
+               'large': 'green',
+               'small':'yellow',
                'brl_rsvp_2_2':'red',
 
                 'left': "#aeb4a9",
                 'right':"#e0c1b3",
 
-                'sighted': 'red',
-                'blind':'blue'}
+                'sighted': 'orangered',
+                'blind':'royalblue'}
 
 non_evoked_keys = ['quantiles']

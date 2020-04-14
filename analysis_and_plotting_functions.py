@@ -1,10 +1,12 @@
 import pathlib
 import pickle
 import os
+from typing import Callable, Iterable
 
 import numpy as np
 import pandas as pd
 from scipy import signal
+from scipy import stats
 
 import mne
 from matplotlib import pyplot as plt
@@ -12,44 +14,55 @@ from matplotlib import pyplot as plt
 import constants
 import iter_topography_fork
 
-def select_color(key):
+def _select_color(key):
+    """If key on constants.plot_colors, return correct color, otherwise 
+        return None
+    
+    Arguments:
+        key {str} -- name of variable to search in constants.plot_colors
+    
+    Returns:
+        [str] -- Color name as defined in matplotlib colormap or hex representation of color.
+    """
+
     if key in constants.plot_colors:
         return constants.plot_colors[key]
     else:
         return None
 
-def plot_evoked_response(data: dict, 
+def plot_evoked_response(   evoked_dict: dict, 
                             p3peaks: dict={}, n1peaks: dict={},
                             p300_n1_aim_fill: bool=True, peakdot: bool=True,
+                            vlines: list=None,
                             fname: pathlib.Path=None,
-                            title=None
-                            ):
+                            title=None):
+    """Plot multiple lines on one mne.viz.plot_topo-like figure
+    
+    Arguments:
+        evoked_dict {dict} -- dict with waveforms to plot ({key: mne.Evoked}) 
+    
+    Keyword Arguments:
+        p3peaks {dict} -- p300 ampltudes and latencies (default: {{}})
+        n1peaks {dict} -- n1 ampltudes and latencies (default: {{}})
+        p300_n1_aim_fill {bool} -- [description] (default: {True})
+        peakdot {bool} -- if True plot P3 and N1 peak (default: {True})
+        vlines {list} -- vertical lines coordinates (default: {None})
+        fname {pathlib.Path} -- file name to save picture (default: {None})
+        title {[type]} -- figure title (default: {None})
     """
-        plot topographic EP maps
-
-        Args:
-            data (dict): dict with waveforms to plot ({key: mne.Evoked}) 
-                        need array with all channels
-            p3peaks (dict): p300 ampltudes and latencies
-            n1peaks (dict): n1 ampltudes and latencies
-            fname (str): file name to save picture
-            peakdot (bool): if True plot P3 and N1 peak
-            p300_n1_aim_fill (bool): if True, fill area around peaks
-    """
+    
+    non_evoked_data = {key: value for (key, value) in evoked_dict.items() if key in constants.non_evoked_keys}
+    data = {key: value for (key, value) in evoked_dict.items() if key not in constants.non_evoked_keys}
     info = list(data.values())[0].info
     channels = [a for a, b in zip(info['ch_names'], info['chs']) if b['kind'] == 2] # select eeg channels => in 'kind' mne.utils._bunch.NamedInt
     channel_inds = [info['ch_names'].index(a) for a in channels] # list of channels indices in data array
-    
-
 
     fig = plt.figure()
     tpplt = [a for a in iter_topography_fork._iter_topography(info, layout=None, on_pick=None, fig=fig, layout_scale=0.945,
                                                     fig_facecolor='white', axis_facecolor='white', axis_spinecolor='white',
-                                                    hide_xticklabels=True, hide_yticklabels=False, y_scale=1)]
-    
+                                                    hide_xticklabels=True, hide_yticklabels=False, y_scale=3)]
     ylim_top = np.max([np.max(data[i].data[ch]) for ch in channel_inds for i in data.keys()])*1.2
     ylim_bottom = np.min([np.min(data[i].data[ch]) for ch in channel_inds for i in data.keys()])*1.2
-    
 
     for n, ch in enumerate(channel_inds):
         ax = tpplt[n][0]
@@ -60,7 +73,7 @@ def plot_evoked_response(data: dict,
         ax.axhline(0, color = 'black', linewidth=0.5)
 
         for i in data.keys():
-            ax.plot(data[i].times, data[i].data[ch], color=select_color(i), label=i)
+            ax.plot(data[i].times, data[i].data[ch], color=_select_color(i), label=i)
 
         ax.set_title(data[list(data.keys())[0]].ch_names[ch])
 
@@ -72,6 +85,15 @@ def plot_evoked_response(data: dict,
             n1p = n1peaks[channels[idx]]
             ax.plot(n1p[0], n1p[1], 'o', color='black', zorder=228)
 
+        if non_evoked_data:
+            if 'quantiles' in list(non_evoked_data.keys()):
+                for i in data.keys():
+                    if i in list(non_evoked_data['quantiles'].keys()):
+                        ax.fill_between(data[i].times,
+                            non_evoked_data['quantiles'][i]['upper'].data[ch],
+                            non_evoked_data['quantiles'][i]['lower'].data[ch],
+                            color=_select_color(i),
+                            alpha=0.2)
 
         if p300_n1_aim_fill:
             if p3peaks:
@@ -84,11 +106,16 @@ def plot_evoked_response(data: dict,
                     fsection = [b for a, b in zip(data['aim'].times, data['aim'].data[ch]) if a >= n1p[0] - 0.015 and a < n1p[0] + 0.015]
                     section = [a for a in data['aim'].times if a >= n1p[0] - 0.015 and a < n1p[0] + 0.015]
                     ax.fill_between(section, fsection, color = 'green', alpha=0.6)
+    if vlines: # markup for stuff about EPs
+        for vl in vlines:
+            # print(vl)
+            tpplt[vl[0]][0].axvline(vl[1]/500.0, alpha=0.2)
 
     # legend = tpplt[0][0].legend(loc = 'upper left', bbox_to_anchor=[-10, -10] prop={'size': 10})
     lhl = tpplt[n][0].get_legend_handles_labels()
+    fig.suptitle(title, x=0, y= 0, ha='left', va='top')
     fig.legend(lhl[0], lhl[1], loc = 'upper left')
-    fig.suptitle(title, fontsize=20)
+
     
     if fname:
         plt.savefig(fname, dpi = 200)
@@ -97,154 +124,151 @@ def plot_evoked_response(data: dict,
     plt.close()
     return fig
 
-def plot_vectors_with_peaks(vector: np.ndarray,
-                            p3_data: int=None, n1_data: int=None, n4_data: int=None):
-    """UNTESTED
+def _get_evoked_and_quantiles(ds, subset:pd.DataFrame,
+                              upper:float=0.75, lower:float=0.25, method:str='mean'):
+    """Return evoked potentials, quantiles and standard deviation from a subset of the dataset.
+        This function has to load all subset into memory at once.
     
     Arguments:
-        vector {np.ndarray} -- [description]
+        ds {DatasetReader} -- dataset object
+        subset {pd.DataFrame} -- subset of ds.markup, meeting any arbitrary condition
     
     Keyword Arguments:
-        p3_data {int} -- [description] (default: {None})
-        n1_data {int} -- [description] (default: {None})
-        n4_data {int} -- [description] (default: {None})
-    """
+        upper {float} -- upper quantile (default: {0.75})
+        lower {float} -- lower quantile (default: {0.25})
+        method {str | callable} -- averaging method (default: {'mean'})
     
-    zero = int(np.abs(constants.epochs_tmin)*constants.fs)
-    xaxis = list(range(-1*zero, vector.shape[0]*constants.ms_factor - zero, constants.ms_factor))
-    plt.plot(xaxis, vector)
-    for peak in p3_data:
-        plt.suptitle(peak['channel'])
-        
-        plt.plot(peak['latency']*constants.ms_factor - zero, 
-                    vector[peak['latency']],
-                    'o', linewidth=4, color='red')
-#             fsection = [b for a, b in zip(['aim'].times, data['aim'].data[ch]*1.0e6) if a >= n1p[0]-0.015 and a < n1p[0]+0.015]
-#             section = []
-        plt.fill_between(x = np.arange(peak['left_base'], peak['right_base']) * constants.ms_factor - zero,
-                        y1 = vector[peak['left_base']: peak['right_base']], color = 'green', alpha = 0.6)
-        
-        # zero_crossings = np.where(np.diff(np.signbit(vector)))[0]
-        # print (zero_crossings)
-        # left_base = np.max([a for a in zero_crossings - peak['latency'] if a <0]) + peak['latency']
-        # right_base_array = [a for a in zero_crossings - peak['latency'] if a >=0]
-        # if len(right_base_array)<1:
-        #     right_base = np.min(right_base_array) + peak['latency']
-
-#             right_base = zero_crossings[np.argmin([a for a in zero_crossings - peak['latency'] if a<0])]
-#             print (left_base, right_base)
-#             print ([a for a in zero_crossings - peak['latency'] if a >0])
-
-        selection = vector[peak['left_base']:peak['right_base']]
-        selection -= selection[0]
-        linear_trend = np.arange(vector[peak['left_base']], vector[peak['right_base']], 1/(peak['right_base'] - peak['left_base']))
-        print (selection, linear_trend)
-        plt.plot (xaxis, np.r_[np.zeros(peak['left_base']), selection, np.zeros(len(vector)-peak['right_base'])])
-
-        plt.text(peak['latency']*constants.ms_factor - zero, 
-                vector[peak['latency']],
-                f"P300 latency {peak['latency']*constants.ms_factor - zero} ms")
-
-        plt.axhline (0, color = 'black')
-        plt.axhline(np.median(vector[peak['left_base']: peak['right_base']]))
-        plt.axvline(zero, color = 'black')
-        plt.axvline(zero + 300, linestyle = '--')
-    plt.show()
-
-def get_peaks_from_evoked(evoked: mne.EvokedArray):
+    Returns:
+        [dict] -- Dictionary with evoked data and quantiles
     """
-        UNTESTED
-        Detect P300 and N1 peak ampltudes ans latencies
 
-        Args:
-            evoke (mne.EvokedArray): average waveforms
+    epochs = ds.create_mne_epochs_from_subset(subset).apply_baseline(constants.evoked_baseline)
+    evoked = epochs.average(method=method, picks=range(epochs.info['nchan'])) # bug in mne.epochs.average??
+    q_lower = np.quantile(epochs.get_data(), lower, axis=0)
+    q_upper = np.quantile(epochs.get_data(), upper, axis=0)
+    std = np.std(epochs.get_data(), axis=0)
 
-        Returns:
-            dict: p3peaks and n1peaks (for plotting) and peaks_dict (for statiscical analysis)
-    """
-    for ch_ind in (16,17,18,24,26,27):
-        vector = evoked._data[ch_ind]
-        peaks = signal.find_peaks(vector, prominence=0.1, distance = 500) 
-        p3p_l = peaks[0]
+    payload = {'evoked': evoked,
+            'lower': mne.EvokedArray(data=q_lower, info=ds.info, tmin=constants.epochs_tmin),
+            'upper': mne.EvokedArray(data=q_upper, info=ds.info, tmin=constants.epochs_tmin),
+            'std': mne.EvokedArray(data=std, info=ds.info, tmin=constants.epochs_tmin),
+            }
+    return payload
 
-        p3p_ind = [n for n, p in enumerate(p3p_l) if p*constants.ms_factor > 280 and 
-                                p* constants.ms_factor < 600]
-        if len(p3p_ind) > 1:
-            print (f'more than one P300 peaks detectedd {peaks[0][p3p_ind]}')
-        p3_data = [{'latency': peaks[0][ind],
-                    'right_base': peaks[1]['right_bases'][ind],
-                    'left_base': peaks[1]['left_bases'][ind],
-                    'prominences': peaks[1]['prominences'][ind],
-                    'channel':constants.ch_names[ch_ind]} for ind in p3p_ind]
-        print (p3_data)
-        plot_vectors_with_peaks(vector, p3_data = p3_data)
+def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2'], quantiles:list=None, method='mean') -> dict:
 
-
-#         peaks_dict = {'File':os.path.basename(self.eeg_filename)}
-#         for p in p3peaks.keys():
-#             peaks_dict
-#             peaks_dict['p3a_{}'.format(p) ] = p3peaks[p][1]
-#             peaks_dict['p3i_{}'.format(p) ] = p3peaks[p][0]
-#             if p in ["po7", "po8","o1","oz","o2"]:
-#                 peaks_dict['n1a_{}'.format(p) ] = n1peaks[p][1]
-#                 peaks_dict['n1i_{}'.format(p) ] = n1peaks[p][0]
-
-#         return p3peaks, n1peaks, peaks_dict
-
-def subset(ds, submarkup:pd.DataFrame, drop_channels:list=['ecg', 'A1', 'A2'], reference = []):
     """Create Mne Evoked arrays for target, nontarget and delta EP
-    
+
     Arguments:
         ds {dataset.DatasetReader} -- dataset
         submarkup {pd.DataFrame} -- subset of ds.markup, meeting any arbitrary condition
-        drop_channels {list} -- channels to remove from evoked array. Defaults to ECG, A1 and A2. 
+        drop_channels {list} -- channels to remove from evoked array. (default: {['ecg', 'A1', 'A2']})
                                 use empty list to use all channels
-    
+        quantiles{list} -- Upper and lower quantiles (default: {None}). If not None, uses memory-greedy
+            algorithm for getting average waveforms
+        method{str|callable} -- method of combining data
     Returns:
         dict -- Payload-style dict with target, nontarget and difference EPs for given subset
-    """    
     
+    TODO: std calculation is memory-greedy, probably should rewrite it with Welford's algorithm
+    """
+
     subset_t = submarkup.loc[submarkup['is_target'] == 1]
     subset_nt = submarkup.loc[submarkup['is_target'] == 0]
 
-    evoked_t = ds.create_mne_evoked_from_subset(subset_t, reference=reference).apply_baseline(constants.evoked_baseline)
-    evoked_nt = ds.create_mne_evoked_from_subset(subset_nt, reference=reference).apply_baseline(constants.evoked_baseline)
-    evoked_delta = mne.EvokedArray( info = ds.info,
-                                    data = evoked_t._data - evoked_nt._data,
-                                    tmin = constants.epochs_tmin,
-                                    nave=evoked_t.nave
-                                    )
-    payload = {
-                'target': evoked_t.drop_channels(drop_channels),
-                'nontarget': evoked_nt.drop_channels(drop_channels),
-                'delta': evoked_delta.drop_channels(drop_channels)
-                }
+    if not quantiles:
+        target = ds.create_mne_evoked_from_subset(subset_t).apply_baseline(constants.evoked_baseline)
+        nontarget = ds.create_mne_evoked_from_subset(subset_nt).apply_baseline(constants.evoked_baseline)
+        delta = mne.EvokedArray(info=ds.info,
+                                data=target._data - nontarget._data,
+                                tmin=constants.epochs_tmin,
+                                nave=target.nave
+                                )
+        payload = {
+                    'target': target.drop_channels(drop_channels),
+                    'nontarget': nontarget.drop_channels(drop_channels),
+                    'delta': delta.drop_channels(drop_channels)
+                    }
+
+    elif quantiles:
+        target = _get_evoked_and_quantiles(ds, subset_t, lower=quantiles[0], upper=quantiles[1], method=method)
+        nontarget = _get_evoked_and_quantiles(ds, subset_nt, lower=quantiles[0], upper=quantiles[1], method=method)
+        nontarget2 = _get_evoked_and_quantiles(ds, subset_nt, lower=quantiles[0], upper=quantiles[1], method=method)
+        delta = mne.EvokedArray(info=ds.info,
+                                data=target["evoked"]._data - nontarget["evoked"]._data,
+                                tmin=constants.epochs_tmin,
+                                nave=target["evoked"].nave
+                                )
+        payload = {
+                    "target": target["evoked"].drop_channels(drop_channels),
+                    "nontarget": nontarget["evoked"].drop_channels(drop_channels),
+                    "delta": delta.drop_channels(drop_channels),
+                    "quantiles": {
+                            "target": {
+                                    "lower": target["lower"].drop_channels(drop_channels),
+                                    "upper": target["upper"].drop_channels(drop_channels),
+                                    "std": target["std"].drop_channels(drop_channels),
+                                    },
+                            "nontarget": {
+                                        "lower": nontarget["lower"].drop_channels(drop_channels),
+                                        "upper": nontarget["upper"].drop_channels(drop_channels),
+                                        "std": nontarget["std"].drop_channels(drop_channels),
+                                        }
+                                }
+                    }
     return payload
 
-
-def cluster_and_plot(X, info, times, condition_names, threshold=10, 
-                    n_permutations=10000, tail=1, step_down_p=0, n_jobs=1, cutoff_pval=0.05):
-    """UNTESTED
+def cluster_and_plot(X:list,
+                    info:mne.Info, 
+                    times:Iterable, 
+                    condition_names:list,
+                    threshold:float=10,
+                    n_permutations:int=10000,
+                    tail:int=1,
+                    step_down_p:float=0,
+                    n_jobs:int=1,
+                    cutoff_pval:float=0.05,
+                    plot_range:list=None,
+                    spatial_exclude=None,
+                    stat_fun:Callable=None):
+    """Run cluster-based permutation test, plot clusters and print p-values of 
+       significant ones.
     
     Arguments:
-        X {[type]} -- [description]
-        info {[type]} -- [description]
-        times {[type]} -- [description]
-        condition_names {[type]} -- [description]
+        X {list} -- list of numpy arrays to compare, [chanels x time x samples]
+        info {mne.Info} -- Info object, corresponding to evoked data
+        times {Iterable} -- X axis for cluster plot
+        condition_names {list} -- Conditions to compare. Must be the same length as X
     
     Keyword Arguments:
-        threshold {int} -- [description] (default: {10})
-        n_permutations {int} -- [description] (default: {10000})
-        tail {int} -- [description] (default: {1})
-    """    
+        See mne.stats.spatio_temporal_cluster_test docs for details
+
+        threshold {float} -- (default: {10})
+        n_permutations {int} -- (default: {10000})
+        tail {int} -- (default: {1})
+        step_down_p {float} -- (default: {0})
+        n_jobs {int} -- (default: {1})
+        cutoff_pval {float} -- (default: {0.05})
+        plot_range {list} -- (default: {None})
+        spatial_exclude {[type]} -- (default: {None})
+        stat_fun {Callable} -- (default: {None})
+    
+    Returns:
+        [list] -- outputs of mne.stats.spatio_temporal_cluster_test
+    """
+    
+    print (stat_fun)
     connectivity, ch_names = mne.channels.find_ch_connectivity(info, ch_type='eeg')
     cluster_stats = mne.stats.spatio_temporal_cluster_test( X=X,
-                                                            threshold=threshold, 
+                                                            threshold=threshold,
                                                             connectivity=connectivity,
-                                                            n_permutations=n_permutations, 
+                                                            n_permutations=n_permutations,
                                                             tail=tail,
                                                             n_jobs=n_jobs,
-                                                            step_down_p=step_down_p
+                                                            step_down_p=step_down_p,
+                                                            stat_fun=stat_fun,
+                                                            check_disjoint=True,
+                                                            spatial_exclude=spatial_exclude
                                                             )
     T_obs, clusters, p_values, _ = cluster_stats
     good_cluster_inds = np.where(p_values < cutoff_pval)[0]
@@ -253,8 +277,8 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
     else:
         print ("No significant clusters found")
     # grand average as numpy arrray
-    grand_ave = np.array(X).mean(axis=1)
-
+    grand_ave = np.array([np.array(a).mean(axis=0) for a in X])
+    print (np.array(X).shape, grand_ave.shape)
     # get sensor positions via layout
     pos = mne.find_layout(info).pos
 
@@ -270,6 +294,13 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         print (f'Mean F-score for cluster {(np.mean(f_map))}')
         # get signals at significant sensors
         signals = grand_ave[..., ch_inds].mean(axis=-1)
+        if plot_range:
+            q_upper = np.quantile(grand_ave[..., ch_inds], plot_range[0], axis=-1)
+            q_lower = np.quantile(grand_ave[..., ch_inds], plot_range[1], axis=-1)
+        else:
+            q_upper = np.zeros(signals.shape)
+            q_lower = np.zeros(signals.shape)
+
         sig_times = times[time_inds]
 
         # create spatial mask
@@ -285,9 +316,9 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         image, _ = mne.viz.plot_topomap(f_map, pos, mask=mask, axes=axs[0],
                             vmin=np.min, vmax=np.max, show=False, 
                             names=info['ch_names'][0:1] + info['ch_names'][2:], show_names=False,
-                            extrapolate='head', contours=10, outlines='skirt', mask_params={'markersize':6, 'markerfacecolor':'blue'})
+                            extrapolate='head', contours=10, outlines='skirt', mask_params={'markersize':4, 'markerfacecolor':'white'})
         fig.colorbar(image, ax=axs[0], shrink=0.6)
-    
+
         axs[0].set_xlabel('Averaged F-map ({:0.1f} - {:0.1f} ms)'.format(*sig_times[[0, -1]]))
         # add new axis for time courses and plot time courses
         # ax_signals = divider.append_axes('right', size='300%', pad=1.2)
@@ -316,3 +347,40 @@ def cluster_and_plot(X, info, times, condition_names, threshold=10,
         fig.subplots_adjust(bottom=.05)
         plt.show()
     return cluster_stats
+
+def assumptions_bonferroni_X(X):
+    """
+    WORK IN PROGRESS
+    """
+
+    bf_correction = X[0].shape[1]*X[0].shape[2]
+    bf_correction = 1
+
+
+    for channel in range(X[0].shape[1]):
+        for sample in range(X[0].shape[-1]):
+
+            c = X[0][:, channel, sample]
+            d = X[1][:, channel, sample]
+
+            ltest= (stats.levene(c, d))
+            shapiro1= (stats.shapiro(d))
+            shapiro2= (stats.shapiro(c))
+
+            # if (ltest[1]<0.05/bf_correction):#  and \
+            if (shapiro1[1]<0.05/bf_correction):# and \
+            #     (shapiro2[1]<0.05/bf_correction):
+
+                yield (channel, sample)
+
+def clusterable_mwtest(x, y):
+    """
+    WORK IN PROGRESS
+    """
+    return np.array([stats.mannwhitneyu(x[:,a], y[:,a])[0] for a in range(x.shape[1])])
+
+def clusterable_kwtest(x, y):
+    """
+    WORK IN PROGRESS
+    """
+    return np.array([stats.kruskal(x[:,a], y[:,a])[0] for a in range(x.shape[1])])
