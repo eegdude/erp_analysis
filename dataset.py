@@ -601,17 +601,33 @@ class DatasetReader():
         cc = 1
         for id in subset['id'].reset_index(drop=True)[1:]:
             ep = self.load_epoch(id)
-            if np.mean(np.max(ep, axis=1)-np.min(ep, axis=1)) < reject_max_delta:
-                data += ep
-                cc += 1
+            if reject_max_delta is not None:
+                if np.mean(np.max(ep, axis=1) - np.min(ep, axis=1)) < reject_max_delta:
+                    data += ep
+                    cc += 1
         data/=cc
         evoked = mne.EvokedArray(info=self.info,
                                 data=data,
-                                tmin=tmin,
+                                tmin=constants.epochs_tmin,
                                 nave=cc)
         if reference:
             evoked = evoked.set_eeg_reference(reference)
         return evoked
+
+def reject_outliers(data:np.ndarray, m=1.5):
+    """remove outliers from data array
+    
+    Arguments:
+        data {np.ndarray} -- 1d-data array
+    
+    Keyword Arguments:
+        m {float} -- how many standard deviation is considered as outlier
+            (default: {1.5})
+    
+    Returns:
+        np.ndarray -- array without outliers
+    """
+    return data[abs(data - np.mean(data)) < m * np.std(data)]
 
 if __name__ == "__main__":
     # Create dataset from raw data\
