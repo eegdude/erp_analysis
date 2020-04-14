@@ -13,7 +13,7 @@ The present analysis is focused on the comparison of BCI performance for large a
 
 For more details, see our preprint at ############
 
-Raw dataset is available at https| //osf.io/yckhm/
+Raw dataset is available at https://osf.io/yckhm/
 
 ## About this repo
 This branch contains several Jupyter notebooks with complete analysis, used in the preprint.
@@ -28,7 +28,7 @@ This branch contains several Jupyter notebooks with complete analysis, used in t
 *  nb_heart.ipynb <br>
     Analysis of cardiosynchronous activity
 
-Notebooks use functions from these .py files| 
+Notebooks use functions from these .py files
 *  dataset.py <br>
     Preprocessing and loading EEG and evoked data
 *  analysis_and_plotting_functions.py <br>
@@ -40,7 +40,7 @@ Other branches contain data analysis routines for different experiments.
 
 ## Analysis workflow
 The data analysis pipeline is optimized for easy computation of different statistics and machine learning metrics for evoked data.
-The analysis includes two steps|  
+The analysis includes two steps
 1. Preprocessing data
 
     The continuous EEG is read from the disk, filtered, and re-referenced. Oculomotor artifacts are optionally removed using ICA. The resulting clean EEG is being cut into epochs, then the epochs are saved to disk as a single file.
