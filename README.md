@@ -60,8 +60,7 @@ For example,
 ```python
 ds.markup.loc[ (ds.markup['blind'] == 1) &
                (ds.markup['reg'] == 'large') &
-               (ds.markup['finger'].isin([7,6,5,4]))
-                                ]
+               (ds.markup['finger'].isin([7,6,5,4]))]
 ```
 will return metadata for epochs, recorded from right hands of blind subjects, performing BCI task with large stimulus. More on this in [dataset description](#Dataset-description) section.
 
@@ -108,7 +107,7 @@ The preprocessed dataset has some added columns, which are calculated during the
 |  ms_after_r|  milliseconds after R-peak
 |  ms_before_r|  milliseconds before next R-peak
 
-### Raw folder structure
+### Raw data folder structure
 ```
 \
 └── markup.csv                               # metadata for all records
@@ -123,6 +122,12 @@ users are numbered from 6 to 26
 
 $MODE can be 'large' for large stimuli and 'small' for small stimuli
 
+### Preprocessed data folder structure
+\
+└── markup.csv                               # metadata for all epochs, created at preprocessing stage
+└── 0.pickle                                 # pickle files, corresponding to single epochs
+...
+└── $N.pickle
 
 ## Reproduction manual
 To successfully run the analysis,
