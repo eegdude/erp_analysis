@@ -35,6 +35,8 @@ Notebooks use functions from these .py files
     Statistical testing and plotting evoked potentials
 *  constants.py <br>
     important signal processing parameters
+*  classification_functions.py <br>
+    Functions for offline classification, cross-validation, statististics and plotting of classification data
 
 Other branches contain data analysis routines for different experiments.
 
