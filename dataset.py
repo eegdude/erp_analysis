@@ -159,7 +159,7 @@ class EpDatasetCreator():
                 ICA: bool=False,
                 fit_with_additional_lowpass: bool=False,
                 ecg_analysis:str=None):
-        """Create preprocessed EEG dataset and store in on disc
+        """Create preprocessed EEG dataset and store it on disc
         
         Arguments:
             markup_path {pathlib.Path} -- path to csv file with per-record markup
