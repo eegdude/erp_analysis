@@ -222,7 +222,7 @@ def cluster_and_plot(X:list,
                     info:mne.Info, 
                     times:Iterable, 
                     condition_names:list,
-                    threshold:float=10,
+                    threshold:float=None,
                     n_permutations:int=10000,
                     tail:int=1,
                     step_down_p:float=0,
@@ -268,7 +268,9 @@ def cluster_and_plot(X:list,
                                                             step_down_p=step_down_p,
                                                             stat_fun=stat_fun,
                                                             check_disjoint=True,
-                                                            spatial_exclude=spatial_exclude
+                                                            spatial_exclude=spatial_exclude,
+                                                            seed=282,
+                                                            t_power=1
                                                             )
     T_obs, clusters, p_values, _ = cluster_stats
     good_cluster_inds = np.where(p_values < cutoff_pval)[0]
