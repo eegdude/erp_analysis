@@ -684,7 +684,7 @@ class DatasetReader():
         Returns:
             np.ndarray -- Epoch array
         """
-        return self.global_in_memory_database[id]
+        return copy.deepcopy(self.global_in_memory_database[id])
 
     def load_pickle(self, id: int , verbose=True) -> np.ndarray:
         """load pickled epoch to memory
@@ -800,7 +800,7 @@ if __name__ == "__main__":
     epd = EpDatasetCreator( markup_path=folders.markup_path,
                             database_path=folders.database_path,
                             data_folder=folders.raw_data_folder,
-                            reference_mode='average',
+                            reference_mode=constants.reference,
                             ICA=True,
                             fit_with_additional_lowpass=True,
                             ecg_analysis='processed',
