@@ -57,6 +57,8 @@ evoked_baseline = (-0.05, 0)
 test_baseline = (0,0)
 
 # Preprocessing settings: filtering
+
+reference = 'average'
 butter_filt = [0.1, 35]
 butter_order = 4
 notch = 50
