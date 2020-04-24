@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy import stats
+from scipy import stats, signal
 import math
 import pickle
 import itertools
@@ -19,11 +19,10 @@ import constants
 class downsampler(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.downsample_div = 10
-        pass
     def fit(self, data, y=None):
         return self
     def transform(self, data):
-        return data[:, :, ::self.downsample_div]
+        return signal.decimate(data, self.downsample_div, axis=-1)
 
 class channel_selector(BaseEstimator, TransformerMixin):
     def __init__(self, classifier_channels = [16,17,18,19,20,25,27,29,34,36,42]):
@@ -100,11 +99,11 @@ def classifier_metrics_aggergated(ds, subset=None,
         user_subset = subset[subset['user'] == user]
         
         if preprocessed:
-            X = ds.preprocessed_db[user_subset['id'],:]
+            X = ds.feature_vectors_db[user_subset['id'],:]
             y = user_subset['is_target']
             p = LDA.fit(X, y=y)
         else:
-            X = ds.create_mne_epochs_from_subset(user_subset)
+            X = ds.create_mne_epochs_from_subset(user_subset).crop(tmin=0)
             y = X.events[:,-1]
             X = X._data
             p = PIPE.fit(X, y=y)
@@ -120,7 +119,7 @@ def classifier_metrics_aggergated(ds, subset=None,
 
 def classifier_any_groups(ds, y, subset=None):
     n_stimuli = len(set(subset['event']))
-    X = ds.create_mne_epochs_from_subset(subset).crop(0,0.8)
+    X = ds.create_mne_epochs_from_subset(subset).crop(tmin=0)
     print(X._data.shape)
     PIPE.fit(X._data, y=y)
     skf = model_selection.RepeatedStratifiedKFold(n_splits=10, n_repeats=10, random_state=282)
