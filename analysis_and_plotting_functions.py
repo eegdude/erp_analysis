@@ -35,6 +35,7 @@ def plot_evoked_response(   evoked_dict: dict,
                             p300_n1_aim_fill: bool=True, peakdot: bool=True,
                             vlines: list=None,
                             fname: pathlib.Path=None,
+                            alpha_dict:dict={},
                             title=None):
     """Plot multiple lines on one mne.viz.plot_topo-like figure
     
@@ -48,11 +49,14 @@ def plot_evoked_response(   evoked_dict: dict,
         peakdot {bool} -- if True plot P3 and N1 peak (default: {True})
         vlines {list} -- vertical lines coordinates (default: {None})
         fname {pathlib.Path} -- file name to save picture (default: {None})
+        alpha_dict {dict} -- control alpha for all lines in evoked_dict.
+            If key is omitted, alpha equals 1 (default: {{}})
         title {[type]} -- figure title (default: {None})
     """
     
     non_evoked_data = {key: value for (key, value) in evoked_dict.items() if key in constants.non_evoked_keys}
     data = {key: value for (key, value) in evoked_dict.items() if key not in constants.non_evoked_keys}
+    alpha_dict = {a:1 if a not in alpha_dict else alpha_dict[a] for a in data.keys()}
     info = list(data.values())[0].info
     channels = [a for a, b in zip(info['ch_names'], info['chs']) if b['kind'] == 2] # select eeg channels => in 'kind' mne.utils._bunch.NamedInt
     channel_inds = [info['ch_names'].index(a) for a in channels] # list of channels indices in data array
@@ -73,7 +77,7 @@ def plot_evoked_response(   evoked_dict: dict,
         ax.axhline(0, color = 'black', linewidth=0.5)
 
         for i in data.keys():
-            ax.plot(data[i].times, data[i].data[ch], color=_select_color(i), label=i)
+            ax.plot(data[i].times, data[i].data[ch], color=_select_color(i), label=i, alpha=alpha_dict[i])
 
         ax.set_title(data[list(data.keys())[0]].ch_names[ch])
 
