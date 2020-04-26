@@ -44,7 +44,7 @@ montage = 'standard_1005'
 fs = 500
 ms_factor = 1000 // fs
 
-events_offset = 0.1 # time lag between synchronised event and actual stimuli activation
+events_offset = 0.06 # time lag between synchronised event and actual stimuli activation
                     # Needs to be measured for every experiment.
 
 # Epochs timing settings
