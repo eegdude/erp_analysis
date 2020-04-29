@@ -77,7 +77,7 @@ def score_func(y, y_pred, **kwargs):
 '''Create classification pipline. Use LDA for feature vectors and PIPE for preprocessed dataset
 '''
 preproc_pipe = pipeline.make_pipeline(
-    epoch_cutter(),
+#     epoch_cutter(),
     channel_selector(),
     downsampler(),
     reshaper(),
