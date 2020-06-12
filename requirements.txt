@@ -5,3 +5,4 @@ heartpy==1.2.6
 numpy==1.17.3
 pandas==0.25.3
 scikit_learn==0.22.2.post1
+pyedflib==0.1.15
