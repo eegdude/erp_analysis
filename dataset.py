@@ -6,6 +6,10 @@ import ast
 import os
 import sys
 import copy
+from collections import OrderedDict
+import datetime
+import time
+import json
 
 import numpy as np
 import pandas as pd
@@ -193,13 +197,13 @@ class EpDatasetCreator():
         self.global_markup = []
 
         self.database = database_path.resolve()
-        self.create_pickled_database(self.database)
+        # self.create_database_folder(self.database)
 
         self.preprocessing = EegPreprocessing(reference_mode=reference_mode, ICA=ICA,
             fit_with_additional_lowpass=fit_with_additional_lowpass)
         
         self.markup = self.read_csv_markup(markup_path)
-        self.load_eeg_from_markup(data_folder)
+
 
     def _event_array_labeler(self, array: np.ndarray, target: int):
         """Receive events and current target, find out which events are target 
@@ -248,7 +252,8 @@ class EpDatasetCreator():
                                         chunked_events: list, 
                                         ch_names: list, 
                                         ch_types: list, 
-                                        fs: int):
+                                        fs: int,
+                                        meas_date: int):
         """Recieve numpy array with EEG, metadata  and events, return 
             mne.RawArray and mne-like events
         
@@ -263,14 +268,16 @@ class EpDatasetCreator():
         Returns:
             mne.RawArray -- Mne array of data
             chunked_events -- BCI events for every input cycle
-        """        
+        """
         self.info = mne.create_info(ch_names=ch_names,
                                     ch_types=ch_types,
                                      montage=constants.montage,
                                      sfreq=fs,
                                      verbose=0)
+        self.info['meas_date'] = (meas_date, 0)
         raw = mne.io.RawArray(eeg[1:,:], self.info)
-
+        raw._orig_units = {ch:'µV' for ch in ch_names}
+        raw = raw.set_eeg_reference([])
         # montage = mne.channels.make_standard_montage(kind = constants.montage)
         # raw.set_montage(montage, verbose=0)
 
@@ -279,22 +286,32 @@ class EpDatasetCreator():
         chunked_events = [chunk.astype(int) for chunk in chunked_events]
         return raw, chunked_events
 
+    def create_meas_date_from_filename(self, fn: str=None):
+        md = pathlib.Path(fn).name.split('.')[0].split('_')[-5:]
+        md = [int(b) for b in md if b is not '']
+        md = datetime.datetime(hour=md[0], minute=md[1], day=md[2], month=md[3], year=2019)
+        return int(md.timestamp()) # for mne 0.20 return datetime object
+
     def open_single_folder_eeg(	self, files_dict: dict, targets=None,
-                                ignore_events_id: list=[], events_offset=None):
-        eeg, chunked_events = self.read_eeg_and_evt_files(	files_dict = files_dict,
+                                ignore_events_id: list=[], events_offset=None,
+                                return_ndarray: bool=False):
+
+        md = self.create_meas_date_from_filename(fn=files_dict['eeg'])
+        eeg, chunked_events = self.read_eeg_and_evt_files(files_dict = files_dict,
                                                             ignore_events_id = ignore_events_id,
                                                             events_offset = events_offset)
-
+        
         raw, chunked_events = self.transform_eeg_and_events_for_mne(eeg,
                                                         chunked_events,
                                                         fs = constants.fs,
                                                         ch_names = constants.ch_names,
-                                                        ch_types = constants.ch_types
-                                                                )
+                                                        ch_types = constants.ch_types,
+                                                        meas_date=md)
+
         self.record_length = max(raw._data.shape)/raw.info['sfreq']
         chunked_events = self.labeler(chunked_events, targets = targets)
         chunked_events = np.array(chunked_events)
-        return raw, chunked_events
+        return raw if not return_ndarray else eeg, chunked_events
 
     def read_eeg_and_evt_files(	self,
                                 files_dict:dict,
@@ -320,7 +337,6 @@ class EpDatasetCreator():
             return read_fif_files(files_dict)
         elif files_dict['eeg'].suffix == '.npy':
             eeg = np.load(files_dict['eeg']).T
-        print (eeg.shape)
         
         evt = np.load(files_dict['evt'])
         if events_offset:
@@ -378,7 +394,7 @@ class EpDatasetCreator():
             markup = [a for a in reader if a['user'] not in self.ignore_users]
         return markup
 
-    def create_pickled_database(self, database_path: pathlib.Path = None) -> None:
+    def create_database_folder(self, database_path: pathlib.Path = None) -> None:
         """Clear everything on database_path and create folder if nor exists yet
         
         Keyword Arguments:
@@ -386,7 +402,8 @@ class EpDatasetCreator():
                 (default: {None})
         """
         try:
-            shutil.rmtree(database_path)
+            shutil.rmtree(database_path, ignore_errors=True)
+            time.sleep(0.5)
             print (f'Cleared data folder at {database_path}')
         except (NotADirectoryError, FileNotFoundError):
             pass
@@ -527,13 +544,10 @@ class EpDatasetCreator():
             fine = input('fine? y/n/discard    ')
             if fine == 'y':
                 return hr_events
-
             elif fine == 'n':
                 return self.create_Rpeak_events(raw, record, hr_events)
-            
             elif fine == 'discard':
                 return np.array([])
-            
             else:
                 return np.array([])
 
@@ -556,9 +570,8 @@ class EpDatasetCreator():
             pass
         if np.size(hr_events) == 0:
             hr_events = None
-        
         return hr_events
-                
+
     def load_eeg_from_markup(self, data_folder: pathlib.Path) -> None:
         for record in self.markup:
             self.epoch_counter_record = 0
@@ -775,9 +788,10 @@ if __name__ == "__main__":
     # Create dataset from raw data\
     
     epd = EpDatasetCreator( markup_path=folders.markup_path,
-                            database_path=folders.database_path,
+                            database_path=folders.bids_path,
                             data_folder=folders.data_folder,
                             reference_mode=[],
                             ICA=False,
                             fit_with_additional_lowpass=True
                             )
+    epd.load_eeg_from_markup(folders.data_folder)
