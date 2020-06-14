@@ -823,6 +823,6 @@ if __name__ == "__main__":
                             ICA=True,
                             fit_with_additional_lowpass=True,
                             ecg_analysis='processed',
-                            create_database_folder=False,
+                            create_database_folder=True,
                             )
     epd.load_eeg_from_markup(folders.raw_data_folder)
